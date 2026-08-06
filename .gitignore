@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+logs/
+coverage/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.tsbuildinfo
+.agents/
+.claude/
+.windsurf/
