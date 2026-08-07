@@ -1,16 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { QueryTaskDto } from './dto/query-task.dto';
+import { AuthUser } from '../auth/types/auth-user.interface';
 
 @Injectable()
 export class TasksService {
     constructor(private readonly prisma: PrismaService) {}
 
-    create(dto: CreateTaskDto) {
+    create(dto: CreateTaskDto, authorId: string) {
         return this.prisma.task.create({
-            data: { ...dto, dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined },
+            data: { ...dto, authorId, dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined },
         });
     }
 
@@ -37,16 +39,26 @@ export class TasksService {
         return task;
     }
 
-    async update(id: string, dto: UpdateTaskDto) {
-        await this.findOne(id);
+    async update(id: string, dto: UpdateTaskDto, user: AuthUser) {
+        const task = await this.findOne(id);
+        this.assertCanModify(task, user);
+
         return this.prisma.task.update({
             where: { id },
             data: { ...dto, dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined },
         });
     }
 
-    async remove(id: string) {
-        await this.findOne(id);
+    async remove(id: string, user: AuthUser) {
+        const task = await this.findOne(id);
+        this.assertCanModify(task, user);
         await this.prisma.task.delete({ where: { id } });
+    }
+
+    private assertCanModify(task: { authorId: string; assigneeId: string | null }, user: AuthUser) {
+        const isOwner = task.authorId === user.id || task.assigneeId === user.id;
+        if (user.role !== Role.ADMIN && !isOwner) {
+            throw new ForbiddenException('Недостаточно прав для изменения этой задачи');
+        }
     }
 }

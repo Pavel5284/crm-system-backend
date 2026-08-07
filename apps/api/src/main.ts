@@ -1,5 +1,5 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import {NestFactory, Reflector} from '@nestjs/core';
+import {ClassSerializerInterceptor, ValidationPipe} from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -21,7 +21,10 @@ async function bootstrap() {
         }),
     );
     app.useGlobalFilters(new AllExceptionsFilter());
-    app.useGlobalInterceptors(new TransformInterceptor());
+    app.useGlobalInterceptors(
+        new TransformInterceptor(),
+        new ClassSerializerInterceptor(app.get(Reflector)),
+    );
 
     const swaggerConfig = new DocumentBuilder()
         .setTitle('Task Manager API')

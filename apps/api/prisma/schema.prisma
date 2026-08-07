@@ -24,13 +24,14 @@ enum TaskPriority {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String   @id @default(uuid())
+  email            String   @unique
+  passwordHash     String
+  refreshTokenHash String?
+  name             String
+  role             Role     @default(USER)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   authoredTasks Task[] @relation("AuthoredTasks")
   assignedTasks Task[] @relation("AssignedTasks")

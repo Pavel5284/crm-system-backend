@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { TaskPriority } from '@prisma/client';
 
@@ -22,10 +22,6 @@ export class CreateTaskDto {
     @IsOptional()
     @IsISO8601()
     dueDate?: string;
-
-    @ApiProperty({ description: 'ВРЕМЕННО передаётся вручную. В Stage 2 заменим на req.user.id из JWT' })
-    @IsUUID()
-    authorId: string;
 
     @ApiPropertyOptional()
     @IsOptional()
