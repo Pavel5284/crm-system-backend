@@ -1,5 +1,5 @@
 ### Логин под заранее засеянным пользователем
-POST http://localhost:3000/api/auth/login
+POST http://localhost:3001/api/auth/login
 Content-Type: application/json
 
 {
@@ -13,11 +13,11 @@ Content-Type: application/json
 %}
 
 ### Список задач с токеном
-GET http://localhost:3000/api/tasks
+GET http://localhost:3001/api/tasks
 Authorization: Bearer {{accessToken}}
 
 ### Создание задачи с токеном (authorId в теле больше не нужен)
-POST http://localhost:3000/api/tasks
+POST http://localhost:3001/api/tasks
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
@@ -26,12 +26,64 @@ Content-Type: application/json
 }
 
 ### Список задач БЕЗ токена — должен вернуть 401
-GET http://localhost:3000/api/tasks
+GET http://localhost:3001/api/tasks
 
 ### Обновление токенов
-POST http://localhost:3000/api/auth/refresh
+POST http://localhost:3001/api/auth/refresh
 Content-Type: application/json
 
 {
   "refreshToken": "{{refreshToken}}"
+}
+
+### Логин Боба — получаем его accessToken и id
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "bob@example.com",
+  "password": "password123"
+}
+
+> {%
+    client.global.set("bobToken", response.body.data.accessToken);
+%}
+
+### Логин Alice
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "alice@example.com",
+  "password": "password123"
+}
+
+> {%
+    client.global.set("aliceToken", response.body.data.accessToken);
+%}
+
+### Alice смотрит список пользователей, чтобы узнать id Боба
+GET http://localhost:3001/api/users
+Authorization: Bearer {{aliceToken}}
+
+### Alice создаёт задачу (пока без исполнителя)
+POST http://localhost:3001/api/tasks
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "title": "Проверка WebSocket-уведомлений"
+}
+
+> {%
+    client.global.set("wsTestTaskId", response.body.data.id);
+%}
+
+### Alice назначает задачу Бобу — ВСТАВЬ id Боба из ответа запроса выше вместо BOB_ID
+PATCH http://localhost:3001/api/tasks/{{wsTestTaskId}}
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "assigneeId": "BOB_ID"
 }
