@@ -33,6 +33,10 @@ export class NotificationsService {
         }
         return this.prisma.notification.update({ where: { id }, data: { read: true } });
     }
+    async handleTaskDueSoon({ task }: { task: { id: string; title: string; assigneeId: string | null } }) {
+        if (!task.assigneeId) return;
+        await this.notify(task.assigneeId, NotificationType.TASK_DUE_SOON, { taskId: task.id, title: task.title });
+    }
 
     private async notify(userId: string, type: NotificationType, payload: Prisma.InputJsonValue) {
         const notification = await this.prisma.notification.create({ data: { userId, type, payload } });

@@ -17,6 +17,10 @@ export class NotificationsController {
     handleTaskCompleted(@Payload() payload: shared.TaskCompletedEventPayload) {
         return this.notificationsService.handleTaskCompleted(payload);
     }
+    @EventPattern(shared.TASK_EVENTS.DUE_SOON)
+    handleTaskDueSoon(@Payload() payload: any) {
+        return this.notificationsService.handleTaskDueSoon(payload);
+    }
 
     @MessagePattern(shared.NOTIFICATION_PATTERNS.FIND_MINE)
     findMine(@Payload() message: shared.FindMyNotificationsMessage) {

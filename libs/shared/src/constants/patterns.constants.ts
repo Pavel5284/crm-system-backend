@@ -9,6 +9,7 @@ export const TASK_PATTERNS = {
 export const TASK_EVENTS = {
     ASSIGNED: 'task.assigned',
     COMPLETED: 'task.completed',
+    DUE_SOON: 'task.due_soon',
 } as const;
 
 export const NOTIFICATION_PATTERNS = {

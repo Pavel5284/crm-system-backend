@@ -7,6 +7,7 @@ import { LoginDto } from './dto/login.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { AuthUser } from './types/auth-user.interface';
+import {Throttle} from "@nestjs/throttler";
 
 @ApiTags('auth')
 @Controller('auth')
@@ -19,6 +20,7 @@ export class AuthController {
         return this.authService.register(dto);
     }
 
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
     @Public()
     @HttpCode(HttpStatus.OK)
     @Post('login')

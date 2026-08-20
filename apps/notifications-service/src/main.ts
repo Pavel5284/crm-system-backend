@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { QUEUES } from '@app/shared';
 import { AppModule } from './app.module';
+import {Logger} from "nestjs-pino";
 
 async function bootstrap() {
     const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
@@ -12,7 +13,8 @@ async function bootstrap() {
             queueOptions: { durable: true },
         },
     });
-
+    app.enableShutdownHooks();
+    app.useLogger(app.get(Logger));
     await app.listen();
     console.log(`📨 notifications-service слушает очередь "${QUEUES.NOTIFICATIONS}"`);
 }

@@ -8,9 +8,11 @@ import { QUEUES } from '@app/shared';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import {Logger} from "nestjs-pino";
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
+    app.enableShutdownHooks();
 
     app.connectMicroservice<MicroserviceOptions>({
         transport: Transport.RMQ,
@@ -30,6 +32,7 @@ async function bootstrap() {
         new TransformInterceptor(),
         new ClassSerializerInterceptor(app.get(Reflector)),
     );
+    app.useLogger(app.get(Logger));
 
     const swaggerConfig = new DocumentBuilder().setTitle('Task Manager API').setVersion('1.0').build();
     SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));

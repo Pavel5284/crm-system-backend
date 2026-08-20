@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -64,6 +65,7 @@ model Task {
 enum NotificationType {
   TASK_ASSIGNED
   TASK_COMPLETED
+  TASK_DUE_SOON
 }
 
 model Notification {

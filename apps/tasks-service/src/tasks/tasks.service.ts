@@ -10,13 +10,26 @@ import {
     TaskAssignedEventPayload,
     TaskCompletedEventPayload,
 } from '@app/shared';
+import {CACHE_MANAGER} from "@nestjs/cache-manager";
+import type {Cache} from "cache-manager";
+import {InjectQueue} from "@nestjs/bullmq";
+import {Queue} from "bullmq";
 
 @Injectable()
 export class TasksService {
     constructor(
         private readonly prisma: PrismaService,
         @Inject('NOTIFICATIONS_SERVICE') private readonly notificationsClient: ClientProxy,
+        @Inject(CACHE_MANAGER) private readonly cache: Cache,
+        @InjectQueue('task-reminders') private readonly remindersQueue: Queue,
     ) {}
+
+    private async scheduleDueDateReminder(task: { id: string; dueDate: Date | null }) {
+        if (!task.dueDate) return;
+        const delay = task.dueDate.getTime() - Date.now() - 24 * 60 * 60 * 1000;
+        if (delay <= 0) return;
+        await this.remindersQueue.add('due-soon', { taskId: task.id }, { delay, jobId: `due-soon:${task.id}` });
+    }
 
     async create(message: CreateTaskMessage) {
         const task = await this.prisma.task.create({
@@ -39,15 +52,20 @@ export class TasksService {
     }
 
     async findAll(query: FindAllTasksMessage) {
+        const cacheKey = `tasks:list:${JSON.stringify(query)}`;
+        const cached = await this.cache.get(cacheKey);
+        if (cached) return cached;
+
         const { page, limit, ...filters } = query;
         const where = { ...filters };
-
         const [items, total] = await this.prisma.$transaction([
             this.prisma.task.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
             this.prisma.task.count({ where }),
         ]);
 
-        return { items, total, page, limit, pageCount: Math.ceil(total / limit) };
+        const result = { items, total, page, limit, pageCount: Math.ceil(total / limit) };
+        await this.cache.set(cacheKey, result, 30_000);
+        return result;
     }
 
     async findOne(id: string) {
