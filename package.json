@@ -8,12 +8,6 @@
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "msgpackr-extract",
-      "argon2"
-    ]
-  },
   "scripts": {
     "start:gateway": "nest start api-gateway --watch",
     "start:tasks": "nest start tasks-service --watch",
