@@ -1,18 +1,18 @@
-import { NotificationType } from '@prisma/client';
+import { NotificationType } from "@prisma/client";
 
 export interface NotificationCreatedEventPayload {
-    id: string;
-    userId: string;
-    type: NotificationType;
-    payload: Record<string, unknown>;
-    createdAt: string;
+  id: string;
+  userId: string;
+  type: NotificationType;
+  payload: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface FindMyNotificationsMessage {
-    userId: string;
+  userId: string;
 }
 
 export interface MarkNotificationReadMessage {
-    id: string;
-    userId: string;
+  id: string;
+  userId: string;
 }

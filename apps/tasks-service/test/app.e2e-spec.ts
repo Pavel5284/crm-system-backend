@@ -1,9 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-import { TasksServiceModule } from './../src/tasks-service.module';
+import { Test, TestingModule } from "@nestjs/testing";
+import { INestApplication } from "@nestjs/common";
+import request from "supertest";
+import type { Server } from "http";
+import { TasksServiceModule } from "./../src/tasks-service.module";
 
-describe('TasksServiceController (e2e)', () => {
+describe("TasksServiceController (e2e)", () => {
   let app: INestApplication;
 
   beforeEach(async () => {
@@ -15,10 +16,10 @@ describe('TasksServiceController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
+  it("/ (GET)", () => {
+    return request(app.getHttpServer() as Server)
+      .get("/")
       .expect(200)
-      .expect('Hello World!');
+      .expect("Hello World!");
   });
 });

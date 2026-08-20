@@ -9,18 +9,22 @@ import { UserEntity } from './entities/user.entity';
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-    constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-    @Get('me')
-    async me(@CurrentUser('id') userId: string) {
-        const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-        return new UserEntity(user);
-    }
+  @Get('me')
+  async me(@CurrentUser('id') userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    return new UserEntity(user);
+  }
 
-    @Roles(Role.ADMIN)
-    @Get()
-    async findAll() {
-        const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
-        return users.map((u) => new UserEntity(u));
-    }
+  @Roles(Role.ADMIN)
+  @Get()
+  async findAll() {
+    const users = await this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return users.map((u) => new UserEntity(u));
+  }
 }

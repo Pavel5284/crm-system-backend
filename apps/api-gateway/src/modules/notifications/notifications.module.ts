@@ -8,24 +8,24 @@ import { GatewayEventsController } from './gateway-events.controller';
 import { NotificationsGateway } from './notifications.gateway';
 
 @Module({
-    imports: [
-        JwtModule.register({}),
-        ClientsModule.registerAsync([
-            {
-                name: 'NOTIFICATIONS_SERVICE',
-                useFactory: (config: ConfigService) => ({
-                    transport: Transport.RMQ,
-                    options: {
-                        urls: [config.getOrThrow<string>('RABBITMQ_URL')],
-                        queue: QUEUES.NOTIFICATIONS,
-                        queueOptions: { durable: true },
-                    },
-                }),
-                inject: [ConfigService],
-            },
-        ]),
-    ],
-    controllers: [NotificationsController, GatewayEventsController],
-    providers: [NotificationsGateway],
+  imports: [
+    JwtModule.register({}),
+    ClientsModule.registerAsync([
+      {
+        name: 'NOTIFICATIONS_SERVICE',
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [config.getOrThrow<string>('RABBITMQ_URL')],
+            queue: QUEUES.NOTIFICATIONS,
+            queueOptions: { durable: true },
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
+  ],
+  controllers: [NotificationsController, GatewayEventsController],
+  providers: [NotificationsGateway],
 })
 export class NotificationsModule {}

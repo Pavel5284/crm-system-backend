@@ -1,8 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { TasksServiceController } from './tasks-service.controller';
-import { TasksServiceService } from './tasks-service.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { TasksServiceController } from "./tasks-service.controller";
+import { TasksServiceService } from "./tasks-service.service";
 
-describe('TasksServiceController', () => {
+describe("TasksServiceController", () => {
   let tasksServiceController: TasksServiceController;
 
   beforeEach(async () => {
@@ -11,12 +11,14 @@ describe('TasksServiceController', () => {
       providers: [TasksServiceService],
     }).compile();
 
-    tasksServiceController = app.get<TasksServiceController>(TasksServiceController);
+    tasksServiceController = app.get<TasksServiceController>(
+      TasksServiceController,
+    );
   });
 
-  describe('root', () => {
+  describe("root", () => {
     it('should return "Hello World!"', () => {
-      expect(tasksServiceController.getHello()).toBe('Hello World!');
+      expect(tasksServiceController.getHello()).toBe("Hello World!");
     });
   });
 });

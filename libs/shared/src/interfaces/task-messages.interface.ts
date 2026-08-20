@@ -1,47 +1,51 @@
-import { TaskPriority, TaskStatus } from '@prisma/client';
-import { AuthUser } from '../types/auth-user.interface';
+import { TaskPriority, TaskStatus } from "@prisma/client";
+import { AuthUser } from "../types/auth-user.interface";
 
 export interface CreateTaskMessage {
-    title: string;
-    description?: string;
-    priority?: TaskPriority;
-    dueDate?: string;
-    assigneeId?: string;
-    authorId: string;
+  title: string;
+  description?: string;
+  priority?: TaskPriority;
+  dueDate?: string;
+  assigneeId?: string;
+  authorId: string;
 }
 
 export interface UpdateTaskMessage {
-    id: string;
-    data: Partial<Omit<CreateTaskMessage, 'authorId'>> & { status?: TaskStatus };
-    requester: AuthUser;
+  id: string;
+  data: Partial<Omit<CreateTaskMessage, "authorId">> & { status?: TaskStatus };
+  requester: AuthUser;
 }
 
 export interface FindAllTasksMessage {
-    status?: TaskStatus;
-    priority?: TaskPriority;
-    assigneeId?: string;
-    page: number;
-    limit: number;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  assigneeId?: string;
+  page: number;
+  limit: number;
 }
 
 export interface RemoveTaskMessage {
-    id: string;
-    requester: AuthUser;
+  id: string;
+  requester: AuthUser;
 }
 
 interface TaskRef {
-    id: string;
-    title: string;
-    assigneeId: string | null;
-    authorId: string;
+  id: string;
+  title: string;
+  assigneeId: string | null;
+  authorId: string;
 }
 
 export interface TaskAssignedEventPayload {
-    task: TaskRef;
-    actorId: string;
+  task: TaskRef;
+  actorId: string;
 }
 
 export interface TaskCompletedEventPayload {
-    task: TaskRef;
-    actorId: string;
+  task: TaskRef;
+  actorId: string;
+}
+
+export interface TaskDueSoonEventPayload {
+  task: TaskRef;
 }
