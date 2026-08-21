@@ -18,6 +18,8 @@ import { Queue } from "bullmq";
 
 @Injectable()
 export class TasksService {
+  private static readonly DUE_SOON_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject("NOTIFICATIONS_SERVICE")
@@ -31,7 +33,8 @@ export class TasksService {
     dueDate: Date | null;
   }) {
     if (!task.dueDate) return;
-    const delay = task.dueDate.getTime() - Date.now() - 24 * 60 * 60 * 1000;
+    const delay =
+      task.dueDate.getTime() - Date.now() - TasksService.DUE_SOON_THRESHOLD_MS;
     if (delay <= 0) return;
     await this.remindersQueue.add(
       "due-soon",
@@ -59,6 +62,8 @@ export class TasksService {
       };
       this.notificationsClient.emit(TASK_EVENTS.ASSIGNED, payload);
     }
+
+    await this.scheduleDueDateReminder(task);
 
     return task;
   }
@@ -132,6 +137,14 @@ export class TasksService {
         actorId: requester.id,
       };
       this.notificationsClient.emit(TASK_EVENTS.COMPLETED, payload);
+    }
+
+    if (
+      dueDate &&
+      updated.dueDate?.getTime() !== previous.dueDate?.getTime()
+    ) {
+      await this.remindersQueue.remove(`due-soon:${id}`);
+      await this.scheduleDueDateReminder(updated);
     }
 
     return updated;

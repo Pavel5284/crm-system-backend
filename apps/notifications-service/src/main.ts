@@ -5,22 +5,22 @@ import { AppModule } from "./app.module";
 import { Logger } from "nestjs-pino";
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.RMQ,
-      options: {
-        urls: [process.env.RABBITMQ_URL ?? "amqp://localhost:5672"],
-        queue: QUEUES.NOTIFICATIONS,
-        queueOptions: { durable: true },
-      },
-    },
-  );
+  const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: {
+      urls: [process.env.RABBITMQ_URL ?? "amqp://localhost:5672"],
+      queue: QUEUES.NOTIFICATIONS,
+      queueOptions: { durable: true },
+    },
+  });
   app.useLogger(app.get(Logger));
-  await app.listen();
-  console.log(
-    `📨 notifications-service слушает очередь "${QUEUES.NOTIFICATIONS}"`,
+
+  await app.startAllMicroservices();
+  await app.listen(process.env.HEALTH_PORT ?? 3001);
+  app.get(Logger).log(
+    `notifications-service: очередь "${QUEUES.NOTIFICATIONS}", health на :${process.env.HEALTH_PORT ?? 3001}`,
   );
 }
 

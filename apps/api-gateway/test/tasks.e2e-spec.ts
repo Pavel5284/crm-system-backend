@@ -1,72 +1,23 @@
-import {
-  ClassSerializerInterceptor,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { execSync } from 'child_process';
 import { Server } from 'http';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
-import { AppModule } from '../src/app.module';
-import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
-import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
+import { E2eInfra, startE2eInfra } from './helpers/e2e-infra';
 
 describe('Task Manager API (e2e)', () => {
   let app: INestApplication;
-  let container: StartedPostgreSqlContainer;
+  let infra: E2eInfra;
   let httpServer: Server;
 
-  jest.setTimeout(60_000);
+  jest.setTimeout(120_000);
 
   beforeAll(async () => {
-    container = await new PostgreSqlContainer('postgres:18-alpine')
-      .withDatabase('taskmanager_test')
-      .withUsername('taskmanager')
-      .withPassword('taskmanager')
-      .start();
-
-    process.env.DATABASE_URL = container.getConnectionUri();
-    process.env.JWT_ACCESS_SECRET = 'test-access-secret-32-characters-minimum';
-    process.env.JWT_ACCESS_EXPIRES_IN = '15m';
-    process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-32-characters-min';
-    process.env.JWT_REFRESH_EXPIRES_IN = '7d';
-
-    // Прогоняем миграции внутри контейнера теста
-    execSync('pnpm prisma migrate deploy', {
-      env: process.env,
-      stdio: 'inherit',
-    });
-
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalFilters(new AllExceptionsFilter());
-    app.useGlobalInterceptors(
-      new TransformInterceptor(),
-      new ClassSerializerInterceptor(app.get(Reflector)),
-    );
-    app.setGlobalPrefix('api');
-    await app.init();
-    httpServer = app.getHttpServer() as Server;
+    infra = await startE2eInfra();
+    app = infra.app;
+    httpServer = infra.httpServer;
   });
 
   afterAll(async () => {
-    await app.close();
-    await container.stop();
+    if (infra) await infra.stop();
   });
 
   let accessToken: string;

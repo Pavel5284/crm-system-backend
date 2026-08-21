@@ -19,8 +19,8 @@ async function bootstrap() {
 
   await app.startAllMicroservices();
   await app.listen(process.env.HEALTH_PORT ?? 3001);
-  console.log(
-    `📨 tasks-service: очередь "${QUEUES.TASKS}", health на :${process.env.HEALTH_PORT ?? 3001}`,
+  app.get(Logger).log(
+    `tasks-service: очередь "${QUEUES.TASKS}", health на :${process.env.HEALTH_PORT ?? 3001}`,
   );
 }
 

@@ -53,7 +53,7 @@ async function bootstrap() {
   await app.startAllMicroservices();
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  console.log(`🚀 api-gateway: http://localhost:${port}/api`);
+  app.get(Logger).log(`api-gateway: http://localhost:${port}/api`);
 }
 
 void bootstrap();

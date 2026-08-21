@@ -1,64 +1,23 @@
-import {
-  ClassSerializerInterceptor,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { execSync } from 'child_process';
 import { Server } from 'http';
 import { io, Socket } from 'socket.io-client';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
-import { AppModule } from '../src/app.module';
-import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
-import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
+import { E2eInfra, startE2eInfra } from './helpers/e2e-infra';
 
 describe('Notifications Gateway (e2e)', () => {
   let app: INestApplication;
-  let container: StartedPostgreSqlContainer;
+  let infra: E2eInfra;
   let httpServer: Server;
   let baseUrl: string;
 
-  jest.setTimeout(60_000);
+  jest.setTimeout(120_000);
 
   beforeAll(async () => {
-    container = await new PostgreSqlContainer('postgres:18-alpine').start();
-    process.env.DATABASE_URL = container.getConnectionUri();
-    process.env.JWT_ACCESS_SECRET = 'test-access-secret-32-characters-minimum';
-    process.env.JWT_ACCESS_EXPIRES_IN = '15m';
-    process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-32-characters-min';
-    process.env.JWT_REFRESH_EXPIRES_IN = '7d';
-
-    execSync('pnpm prisma migrate deploy', {
-      env: process.env,
-      stdio: 'inherit',
-    });
-
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalFilters(new AllExceptionsFilter());
-    app.useGlobalInterceptors(
-      new TransformInterceptor(),
-      new ClassSerializerInterceptor(app.get(Reflector)),
-    );
-    app.setGlobalPrefix('api');
-    await app.init();
+    infra = await startE2eInfra({ notifications: true });
+    app = infra.app;
+    httpServer = infra.httpServer;
     await app.listen(0);
 
-    httpServer = app.getHttpServer() as Server;
     const address = httpServer.address();
     const port =
       typeof address === 'string' || address === null ? 0 : address.port;
@@ -66,8 +25,7 @@ describe('Notifications Gateway (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    await container.stop();
+    if (infra) await infra.stop();
   });
 
   async function registerAndLogin(email: string) {
