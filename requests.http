@@ -87,3 +87,59 @@ Content-Type: application/json
 {
   "assigneeId": "BOB_ID"
 }
+
+### Список сделок (kanban)
+GET http://localhost:3001/api/deals
+Authorization: Bearer {{aliceToken}}
+
+### Создание сделки (клиент ищется/создаётся по email)
+POST http://localhost:3001/api/deals
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "name": "Поставка оборудования",
+  "price": 150000,
+  "customerEmail": "client@example.com",
+  "customerName": "ООО Ромашка",
+  "status": "todo"
+}
+
+> {%
+    client.global.set("dealId", response.body.data.id);
+%}
+
+### Перенос сделки в другую колонку
+PATCH http://localhost:3001/api/deals/{{dealId}}
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "status": "in-progress"
+}
+
+### Список клиентов
+GET http://localhost:3001/api/customers
+Authorization: Bearer {{aliceToken}}
+
+### Комментарии сделки
+GET http://localhost:3001/api/comments?dealId={{dealId}}
+Authorization: Bearer {{aliceToken}}
+
+### Добавить комментарий (автор берётся из токена)
+POST http://localhost:3001/api/comments
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "dealId": "{{dealId}}",
+  "text": "Обсудили условия поставки"
+}
+
+> {%
+    client.global.set("commentId", response.body.data.id);
+%}
+
+### Удалить комментарий
+DELETE http://localhost:3001/api/comments/{{commentId}}
+Authorization: Bearer {{aliceToken}}

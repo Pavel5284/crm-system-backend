@@ -112,9 +112,9 @@ export async function startE2eInfra(
   await app.init();
   await app.startAllMicroservices();
 
-  const { AppModule: TasksServiceAppModule } = require(
-    '../../../tasks-service/src/app.module',
-  );
+  const {
+    AppModule: TasksServiceAppModule,
+  } = require('../../../tasks-service/src/app.module');
   const tasksApp = await NestFactory.create(TasksServiceAppModule, {
     logger: false,
     abortOnError: false,
@@ -131,13 +131,13 @@ export async function startE2eInfra(
 
   let notificationsApp: INestApplication | null = null;
   if (options.notifications) {
-    const { AppModule: NotificationsServiceAppModule } = require(
-      '../../../notifications-service/src/app.module',
-    );
-    notificationsApp = await NestFactory.create(
-      NotificationsServiceAppModule,
-      { logger: false, abortOnError: false },
-    );
+    const {
+      AppModule: NotificationsServiceAppModule,
+    } = require('../../../notifications-service/src/app.module');
+    notificationsApp = await NestFactory.create(NotificationsServiceAppModule, {
+      logger: false,
+      abortOnError: false,
+    });
     notificationsApp.connectMicroservice<MicroserviceOptions>({
       transport: Transport.RMQ,
       options: {

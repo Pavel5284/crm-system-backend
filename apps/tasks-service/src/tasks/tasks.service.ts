@@ -139,10 +139,7 @@ export class TasksService {
       this.notificationsClient.emit(TASK_EVENTS.COMPLETED, payload);
     }
 
-    if (
-      dueDate &&
-      updated.dueDate?.getTime() !== previous.dueDate?.getTime()
-    ) {
+    if (dueDate && updated.dueDate?.getTime() !== previous.dueDate?.getTime()) {
       await this.remindersQueue.remove(`due-soon:${id}`);
       await this.scheduleDueDateReminder(updated);
     }

@@ -8,6 +8,9 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { DealsModule } from './modules/deals/deals.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { CommentsModule } from './modules/comments/comments.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { LoggerModule } from 'nestjs-pino';
@@ -22,6 +25,9 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
     UsersModule,
     TasksModule,
     NotificationsModule,
+    DealsModule,
+    CustomersModule,
+    CommentsModule,
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
