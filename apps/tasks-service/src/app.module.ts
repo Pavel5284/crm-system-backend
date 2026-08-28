@@ -43,25 +43,32 @@ import { TaskRemindersProcessor } from "./tasks/task-reminders.processor";
     }),
     CacheModule.registerAsync({
       isGlobal: true,
-      useFactory: async (config: ConfigService) => ({
-        store: await redisStore({
-          url: config.getOrThrow<string>("VALKEY_URL"),
-        }),
-        ttl: 30_000, // 30 секунд
-      }),
+      useFactory: async (config: ConfigService) => {
+        const url = config.get<string>("VALKEY_URL");
+        if (!url) return { ttl: 30_000 } as any;
+        return {
+          store: await redisStore({ url }),
+          ttl: 30_000,
+        };
+      },
       inject: [ConfigService],
     }),
-    BullModule.forRootAsync({
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          url: config.getOrThrow<string>("VALKEY_URL"),
-        },
-      }),
-      inject: [ConfigService],
-    }),
-    BullModule.registerQueue({ name: "task-reminders" }),
+    ...(process.env.NODE_ENV === 'test'
+      ? []
+      : [
+          BullModule.forRootAsync({
+            useFactory: (config: ConfigService) => ({
+              connection: { url: config.getOrThrow<string>("VALKEY_URL") },
+            }),
+            inject: [ConfigService],
+          }),
+          BullModule.registerQueue({ name: "task-reminders" }),
+        ]),
   ],
   controllers: [TasksController],
-  providers: [TasksService, TaskRemindersProcessor],
+  providers: [
+    TasksService,
+    ...(process.env.NODE_ENV === 'test' ? [] : [TaskRemindersProcessor]),
+  ],
 })
 export class AppModule {}

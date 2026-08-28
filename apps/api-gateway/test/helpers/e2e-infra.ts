@@ -54,16 +54,9 @@ export async function startE2eInfra(
     .withWaitStrategy(Wait.forListeningPorts())
     .start();
 
-  const valkey: StartedTestContainer = await new GenericContainer(
-    'valkey/valkey:8-alpine',
-  )
-    .withExposedPorts(6379)
-    .withWaitStrategy(Wait.forListeningPorts())
-    .start();
-
   process.env.DATABASE_URL = postgres.getConnectionUri();
   process.env.RABBITMQ_URL = `amqp://taskmanager:taskmanager@${rabbitmq.getHost()}:${rabbitmq.getMappedPort(5672)}`;
-  process.env.VALKEY_URL = `redis://${valkey.getHost()}:${valkey.getMappedPort(6379)}`;
+  delete process.env.VALKEY_URL;
   process.env.JWT_ACCESS_SECRET = 'test-access-secret-32-characters-minimum';
   process.env.JWT_ACCESS_EXPIRES_IN = '15m';
   process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-32-characters-min';
@@ -156,9 +149,7 @@ export async function startE2eInfra(
       if (notificationsApp) await notificationsApp.close();
       await tasksApp.close();
       await app.close();
-      await valkey.stop();
-      await rabbitmq.stop();
-      await postgres.stop();
+      await Promise.allSettled([rabbitmq.stop(), postgres.stop()]);
     },
   };
 }

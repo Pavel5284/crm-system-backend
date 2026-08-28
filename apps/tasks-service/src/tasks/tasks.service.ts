@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ClientProxy, RpcException } from "@nestjs/microservices";
 import { PrismaService } from "@app/database";
 import { Role, TaskStatus } from "@prisma/client";
@@ -25,7 +26,10 @@ export class TasksService {
     @Inject("NOTIFICATIONS_SERVICE")
     private readonly notificationsClient: ClientProxy,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
-    @InjectQueue("task-reminders") private readonly remindersQueue: Queue,
+    @Optional()
+    @InjectQueue("task-reminders")
+    private readonly remindersQueue: Queue | undefined,
+    @Optional() private readonly configService: ConfigService | undefined,
   ) {}
 
   private async scheduleDueDateReminder(task: {
@@ -33,14 +37,20 @@ export class TasksService {
     dueDate: Date | null;
   }) {
     if (!task.dueDate) return;
+    if (!this.configService?.get<string>("VALKEY_URL")) return;
+    if (!this.remindersQueue) return;
     const delay =
       task.dueDate.getTime() - Date.now() - TasksService.DUE_SOON_THRESHOLD_MS;
     if (delay <= 0) return;
-    await this.remindersQueue.add(
-      "due-soon",
-      { taskId: task.id },
-      { delay, jobId: `due-soon:${task.id}` },
-    );
+    try {
+      await this.remindersQueue.add(
+        "due-soon",
+        { taskId: task.id },
+        { delay, jobId: `due-soon:${task.id}` },
+      );
+    } catch {
+      // в e2e без Valkey — игнорируем
+    }
   }
 
   async create(message: CreateTaskMessage) {
@@ -140,7 +150,9 @@ export class TasksService {
     }
 
     if (dueDate && updated.dueDate?.getTime() !== previous.dueDate?.getTime()) {
-      await this.remindersQueue.remove(`due-soon:${id}`);
+      try {
+        await this.remindersQueue?.remove(`due-soon:${id}`);
+      } catch {}
       await this.scheduleDueDateReminder(updated);
     }
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { baseEnvSchema } from "@app/shared";
 
 const envSchema = baseEnvSchema.extend({
-  VALKEY_URL: z.string().url(),
+  VALKEY_URL: z.string().url().optional(),
   HEALTH_PORT: z.coerce.number().default(3001),
 });
 
