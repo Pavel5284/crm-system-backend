@@ -11,7 +11,7 @@ import { Server } from 'http';
 import * as amqp from 'amqplib';
 import {
   GenericContainer,
-  StartedGenericContainer,
+  StartedTestContainer,
   Wait,
 } from 'testcontainers';
 import {
@@ -43,7 +43,7 @@ export async function startE2eInfra(
     .withPassword('taskmanager')
     .start();
 
-  const rabbitmq: StartedGenericContainer = await new GenericContainer(
+  const rabbitmq: StartedTestContainer = await new GenericContainer(
     'rabbitmq:4-management',
   )
     .withEnvironment({
@@ -54,7 +54,7 @@ export async function startE2eInfra(
     .withWaitStrategy(Wait.forListeningPorts())
     .start();
 
-  const valkey: StartedGenericContainer = await new GenericContainer(
+  const valkey: StartedTestContainer = await new GenericContainer(
     'valkey/valkey:8-alpine',
   )
     .withExposedPorts(6379)
@@ -156,6 +156,7 @@ export async function startE2eInfra(
       if (notificationsApp) await notificationsApp.close();
       await tasksApp.close();
       await app.close();
+      await valkey.stop();
       await rabbitmq.stop();
       await postgres.stop();
     },
