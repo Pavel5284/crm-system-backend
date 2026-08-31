@@ -24,7 +24,9 @@ describe('AuthService', () => {
     configService = {
       getOrThrow: jest.fn((key: string) => `value-for-${key}`),
     };
-    emailService = { sendVerificationEmail: jest.fn().mockResolvedValue(undefined) };
+    emailService = {
+      sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module = await Test.createTestingModule({
       providers: [

@@ -21,7 +21,8 @@ export class UpdateCustomerDto {
   email?: string;
 
   @ApiPropertyOptional({
-    description: 'Base64 data URI (data:image/png;base64,...) или пустая строка для дефолтной аватары',
+    description:
+      'Base64 data URI (data:image/png;base64,...) или пустая строка для дефолтной аватары',
     example: 'data:image/png;base64,iVBORw0KGgo...',
   })
   @IsOptional()

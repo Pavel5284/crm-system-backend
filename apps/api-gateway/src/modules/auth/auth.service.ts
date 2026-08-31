@@ -35,10 +35,16 @@ export class AuthService {
           where: { id: existing.id },
           data: {
             emailVerificationToken: token,
-            emailVerificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            emailVerificationTokenExpires: new Date(
+              Date.now() + 24 * 60 * 60 * 1000,
+            ),
           },
         });
-        await this.emailService.sendVerificationEmail(existing.email, existing.name, token);
+        await this.emailService.sendVerificationEmail(
+          existing.email,
+          existing.name,
+          token,
+        );
       }
       throw new ConflictException('Пользователь с таким email уже существует');
     }
@@ -47,7 +53,12 @@ export class AuthService {
     const isTest = process.env.NODE_ENV === 'test';
     if (isTest) {
       const user = await this.prisma.user.create({
-        data: { email: dto.email, passwordHash, name: dto.name, isEmailVerified: true },
+        data: {
+          email: dto.email,
+          passwordHash,
+          name: dto.name,
+          isEmailVerified: true,
+        },
       });
       return this.issueTokens(user.id, user.email, user.role);
     }
@@ -59,13 +70,17 @@ export class AuthService {
         name: dto.name,
         isEmailVerified: false,
         emailVerificationToken: token,
-        emailVerificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        emailVerificationTokenExpires: new Date(
+          Date.now() + 24 * 60 * 60 * 1000,
+        ),
       },
     });
 
     await this.emailService.sendVerificationEmail(user.email, user.name, token);
 
-    return { message: 'Проверьте почту — мы отправили ссылку для подтверждения' };
+    return {
+      message: 'Проверьте почту — мы отправили ссылку для подтверждения',
+    };
   }
 
   async verifyEmail(token: string) {
@@ -93,13 +108,16 @@ export class AuthService {
   async resendVerification(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('Пользователь не найден');
-    if (user.isEmailVerified) throw new BadRequestException('Email уже подтверждён');
+    if (user.isEmailVerified)
+      throw new BadRequestException('Email уже подтверждён');
     const token = randomBytes(32).toString('hex');
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
         emailVerificationToken: token,
-        emailVerificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        emailVerificationTokenExpires: new Date(
+          Date.now() + 24 * 60 * 60 * 1000,
+        ),
       },
     });
     await this.emailService.sendVerificationEmail(user.email, user.name, token);

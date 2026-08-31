@@ -24,10 +24,12 @@ export class EmailService {
   }
 
   async sendVerificationEmail(email: string, name: string, token: string) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
     const verifyUrl = `${frontendUrl.replace(/\/$/, '')}/verify-email?token=${token}`;
 
-    const from = this.configService.get<string>('SMTP_FROM') ?? 'noreply@crm.local';
+    const from =
+      this.configService.get<string>('SMTP_FROM') ?? 'noreply@crm.local';
     const subject = 'Подтвердите email — Kilka CRM';
     const html = `
       <p>Привет, ${name}!</p>
@@ -47,9 +49,14 @@ export class EmailService {
       await this.transporter.sendMail({ from, to: email, subject, html, text });
       this.logger.log(`Verification email sent to ${email}`);
     } catch (err) {
-      this.logger.error(`Failed to send verification email to ${email}`, err as string);
+      this.logger.error(
+        `Failed to send verification email to ${email}`,
+        err as string,
+      );
       // не пробрасываем — регистрация уже создана, ссылку всё равно видно в логах
-      this.logger.log(`[FALLBACK] verification link for ${email}: ${verifyUrl}`);
+      this.logger.log(
+        `[FALLBACK] verification link for ${email}: ${verifyUrl}`,
+      );
     }
   }
 }

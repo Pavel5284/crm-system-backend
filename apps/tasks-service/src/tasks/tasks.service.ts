@@ -152,7 +152,9 @@ export class TasksService {
     if (dueDate && updated.dueDate?.getTime() !== previous.dueDate?.getTime()) {
       try {
         await this.remindersQueue?.remove(`due-soon:${id}`);
-      } catch {}
+      } catch {
+        // ignore - queue not available in test
+      }
       await this.scheduleDueDateReminder(updated);
     }
 

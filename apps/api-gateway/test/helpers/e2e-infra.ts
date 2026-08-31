@@ -9,11 +9,7 @@ import { Test } from '@nestjs/testing';
 import { execSync } from 'child_process';
 import { Server } from 'http';
 import * as amqp from 'amqplib';
-import {
-  GenericContainer,
-  StartedTestContainer,
-  Wait,
-} from 'testcontainers';
+import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -75,6 +71,7 @@ export async function startE2eInfra(
   await channel.close();
   await connection.close();
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
   const { AppModule: GatewayAppModule } = require('../../src/app.module');
   const moduleRef = await Test.createTestingModule({
     imports: [GatewayAppModule],
@@ -105,13 +102,16 @@ export async function startE2eInfra(
   await app.init();
   await app.startAllMicroservices();
 
-  const {
-    AppModule: TasksServiceAppModule,
-  } = require('../../../tasks-service/src/app.module');
-  const tasksApp = await NestFactory.create(TasksServiceAppModule, {
-    logger: false,
-    abortOnError: false,
-  });
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, prettier/prettier
+  const { AppModule: TasksServiceAppModule } = require('../../../tasks-service/src/app.module');
+  const tasksApp = await NestFactory.create(
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    TasksServiceAppModule,
+    {
+      logger: false,
+      abortOnError: false,
+    },
+  );
   tasksApp.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {
@@ -124,13 +124,16 @@ export async function startE2eInfra(
 
   let notificationsApp: INestApplication | null = null;
   if (options.notifications) {
-    const {
-      AppModule: NotificationsServiceAppModule,
-    } = require('../../../notifications-service/src/app.module');
-    notificationsApp = await NestFactory.create(NotificationsServiceAppModule, {
-      logger: false,
-      abortOnError: false,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, prettier/prettier
+    const { AppModule: NotificationsServiceAppModule } = require('../../../notifications-service/src/app.module');
+    notificationsApp = await NestFactory.create(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      NotificationsServiceAppModule,
+      {
+        logger: false,
+        abortOnError: false,
+      },
+    );
     notificationsApp.connectMicroservice<MicroserviceOptions>({
       transport: Transport.RMQ,
       options: {

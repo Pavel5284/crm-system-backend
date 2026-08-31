@@ -1,10 +1,8 @@
-import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { Server } from 'http';
 import { E2eInfra, startE2eInfra } from './helpers/e2e-infra';
 
 describe('Task Manager API (e2e)', () => {
-  let app: INestApplication;
   let infra: E2eInfra;
   let httpServer: Server;
 
@@ -12,7 +10,6 @@ describe('Task Manager API (e2e)', () => {
 
   beforeAll(async () => {
     infra = await startE2eInfra();
-    app = infra.app;
     httpServer = infra.httpServer;
   });
 

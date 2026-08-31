@@ -43,9 +43,11 @@ import { TaskRemindersProcessor } from "./tasks/task-reminders.processor";
     }),
     CacheModule.registerAsync({
       isGlobal: true,
+
       useFactory: async (config: ConfigService) => {
         const url = config.get<string>("VALKEY_URL");
-        if (!url) return { ttl: 30_000 } as any;
+
+        if (!url) return { ttl: 30_000 } as unknown as never;
         return {
           store: await redisStore({ url }),
           ttl: 30_000,
@@ -53,7 +55,7 @@ import { TaskRemindersProcessor } from "./tasks/task-reminders.processor";
       },
       inject: [ConfigService],
     }),
-    ...(process.env.NODE_ENV === 'test'
+    ...(process.env.NODE_ENV === "test"
       ? []
       : [
           BullModule.forRootAsync({
@@ -68,7 +70,7 @@ import { TaskRemindersProcessor } from "./tasks/task-reminders.processor";
   controllers: [TasksController],
   providers: [
     TasksService,
-    ...(process.env.NODE_ENV === 'test' ? [] : [TaskRemindersProcessor]),
+    ...(process.env.NODE_ENV === "test" ? [] : [TaskRemindersProcessor]),
   ],
 })
 export class AppModule {}
