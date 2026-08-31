@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { AuthService } from './auth.service';
+import { EmailService } from './email.service';
 import { PrismaService } from '@app/database';
 
 jest.mock('argon2');
@@ -13,6 +14,7 @@ describe('AuthService', () => {
   let prisma: { user: Record<'findUnique' | 'create' | 'update', jest.Mock> };
   let jwtService: { signAsync: jest.Mock };
   let configService: { getOrThrow: jest.Mock };
+  let emailService: { sendVerificationEmail: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -22,6 +24,7 @@ describe('AuthService', () => {
     configService = {
       getOrThrow: jest.fn((key: string) => `value-for-${key}`),
     };
+    emailService = { sendVerificationEmail: jest.fn().mockResolvedValue(undefined) };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -29,6 +32,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prisma as Record<string, unknown> },
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
+        { provide: EmailService, useValue: emailService },
       ],
     }).compile();
 
@@ -62,6 +66,7 @@ describe('AuthService', () => {
       email: 'a@a.com',
       role: 'USER',
       passwordHash: 'hash',
+      isEmailVerified: true,
     });
     (argon2.verify as jest.Mock).mockResolvedValue(true);
     (argon2.hash as jest.Mock).mockResolvedValue('hashed-refresh');

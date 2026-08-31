@@ -10,14 +10,14 @@ async function main() {
 
     const alice = await prisma.user.upsert({
         where: { email: 'alice@example.com' },
-        update: {},
-        create: { email: 'alice@example.com', name: 'Alice', passwordHash, role: Role.ADMIN },
+        update: { isEmailVerified: true },
+        create: { email: 'alice@example.com', name: 'Alice', passwordHash, role: Role.ADMIN, isEmailVerified: true },
     });
 
     const bob = await prisma.user.upsert({
         where: { email: 'bob@example.com' },
-        update: {},
-        create: { email: 'bob@example.com', name: 'Bob', passwordHash, role: Role.USER },
+        update: { isEmailVerified: true },
+        create: { email: 'bob@example.com', name: 'Bob', passwordHash, role: Role.USER, isEmailVerified: true },
     });
 
     await prisma.task.createMany({
