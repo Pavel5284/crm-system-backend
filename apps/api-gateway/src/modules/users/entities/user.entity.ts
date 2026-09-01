@@ -6,6 +6,7 @@ export class UserEntity {
   email: string;
   name: string;
   role: Role;
+  isEmailVerified: boolean;
   createdAt: Date;
 
   @Exclude()
@@ -13,6 +14,12 @@ export class UserEntity {
 
   @Exclude()
   refreshTokenHash: string | null;
+
+  @Exclude()
+  emailVerificationToken: string | null;
+
+  @Exclude()
+  emailVerificationTokenExpires: Date | null;
 
   constructor(partial: Partial<UserEntity>) {
     Object.assign(this, partial);
