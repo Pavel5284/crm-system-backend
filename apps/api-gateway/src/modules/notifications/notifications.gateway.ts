@@ -12,7 +12,10 @@ import { Server, Socket } from 'socket.io';
 @Injectable()
 @WebSocketGateway({
   namespace: 'notifications',
-  cors: { origin: process.env.CORS_ORIGIN ?? '*', credentials: true },
+  cors: {
+    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3001',
+    credentials: true,
+  },
 })
 export class NotificationsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -25,9 +28,22 @@ export class NotificationsGateway
     private readonly configService: ConfigService,
   ) {}
 
+  private parseCookies(cookieHeader?: string): Record<string, string> {
+    if (!cookieHeader) return {};
+    return Object.fromEntries(
+      cookieHeader.split(';').map((c) => {
+        const [k, ...v] = c.trim().split('=');
+        return [k, decodeURIComponent(v.join('='))];
+      }),
+    );
+  }
+
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth?.token as string | undefined;
+      const cookies = this.parseCookies(client.handshake.headers.cookie);
+      const token =
+        (client.handshake.auth?.token as string | undefined) ??
+        cookies.accessToken;
       if (!token) throw new Error('Токен не передан');
 
       const payload = await this.jwtService.verifyAsync<{ sub: string }>(

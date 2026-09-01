@@ -30,7 +30,7 @@ export class EmailService {
 
     const from =
       this.configService.get<string>('SMTP_FROM') ?? 'noreply@crm.local';
-    const subject = 'Подтвердите email — Kilka CRM';
+    const subject = 'Подтвердите email — Noname CRM';
     const html = `
       <p>Привет, ${name}!</p>
       <p>Для завершения регистрации перейдите по ссылке:</p>
