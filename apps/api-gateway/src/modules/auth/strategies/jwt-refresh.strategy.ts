@@ -20,7 +20,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) =>
-          (req as Request & { cookies?: Record<string, string> }).cookies
+          (req as unknown as { cookies?: Record<string, string> }).cookies
             ?.refreshToken ?? null,
       ]),
       ignoreExpiration: false,
@@ -31,8 +31,9 @@ export class JwtRefreshStrategy extends PassportStrategy(
 
   validate(req: Request, payload: JwtPayload) {
     const refreshToken = (
-      req as Request & { cookies?: Record<string, string> }
+      req as unknown as { cookies?: Record<string, string> }
     ).cookies?.refreshToken;
+
     return {
       id: payload.sub,
       email: payload.email,

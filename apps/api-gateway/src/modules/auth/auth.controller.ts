@@ -25,7 +25,11 @@ import { Throttle } from '@nestjs/throttler';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  private setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
+  private setAuthCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string,
+  ) {
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
       secure: false,
@@ -84,7 +88,7 @@ export class AuthController {
   ) {
     const result = await this.authService.register(dto);
     if ('refreshToken' in result) {
-      const r = result as { accessToken: string; refreshToken: string };
+      const r = result;
       this.setAuthCookies(res, r.accessToken, r.refreshToken);
       return { accessToken: r.accessToken };
     }
