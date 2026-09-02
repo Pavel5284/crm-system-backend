@@ -43,7 +43,7 @@ describe('Notifications Gateway (e2e)', () => {
     const assigneeToken = await registerAndLogin('assignee@example.com');
 
     const profile = await request(httpServer)
-      .get('/api/users/me')
+      .get('/api/users/profile')
       .set('Authorization', `Bearer ${assigneeToken}`);
     const assigneeId = (profile.body as { data: { id: string } }).data.id;
 
