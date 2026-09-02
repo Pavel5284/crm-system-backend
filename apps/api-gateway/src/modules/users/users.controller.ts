@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { PrismaService } from '@app/database';
@@ -56,9 +64,12 @@ export class UsersController {
       data.position = dto.position?.trim() || null;
     if (dto.phone !== undefined) data.phone = dto.phone?.trim() || null;
     if (dto.telegram !== undefined) {
-      let tg = dto.telegram.trim();
-      if (tg && !tg.startsWith('@')) tg = '@' + tg;
-      data.telegram = tg || null;
+      if (dto.telegram === null) data.telegram = null;
+      else {
+        let tg = dto.telegram.trim();
+        if (tg && !tg.startsWith('@')) tg = '@' + tg;
+        data.telegram = tg || null;
+      }
     }
     const user = await this.prisma.user.update({
       where: { id: userId },
@@ -116,13 +127,35 @@ export class UsersController {
   }
 
   @Get('me/visits')
-  async visits(@CurrentUser('id') userId: string) {
-    const visits = await this.prisma.visit.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    return visits;
+  async visits(
+    @CurrentUser('id') userId: string,
+    @Req() req: import('express').Request,
+  ) {
+    const page = Math.max(
+      1,
+      parseInt((req.query.page as string) || '1', 10) || 1,
+    );
+    const rawLimit = parseInt((req.query.limit as string) || '10', 10) || 10;
+    const limit = [10, 25, 50].includes(rawLimit) ? rawLimit : 10;
+    const skip = (page - 1) * limit;
+
+    const [visits, total] = await Promise.all([
+      this.prisma.visit.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.visit.count({ where: { userId } }),
+    ]);
+
+    return {
+      data: visits,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   @Roles(Role.ADMIN)
