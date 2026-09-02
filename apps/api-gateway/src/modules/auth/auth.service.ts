@@ -124,7 +124,7 @@ export class AuthService {
     return { message: 'Письмо отправлено повторно' };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -136,7 +136,57 @@ export class AuthService {
     if (!user.isEmailVerified)
       throw new UnauthorizedException('Email не подтверждён. Проверьте почту');
 
-    return this.issueTokens(user.id, user.email, user.role);
+    const tokens = await this.issueTokens(user.id, user.email, user.role);
+
+    // логируем визит — ошибку не пробрасываем
+    try {
+      const ua = meta?.userAgent ?? '';
+      const parsed = this.parseUserAgent(ua);
+      await this.prisma.visit.create({
+        data: {
+          userId: user.id,
+          ip: meta?.ip ?? 'unknown',
+          userAgent: ua.slice(0, 512),
+          device: parsed.device,
+          browser: parsed.browser,
+          os: parsed.os,
+        },
+      });
+    } catch (_e) {
+      void _e;
+    }
+
+    return tokens;
+  }
+
+  private parseUserAgent(ua: string): {
+    device: string | null;
+    browser: string | null;
+    os: string | null;
+  } {
+    if (!ua) return { device: null, browser: null, os: null };
+    let browser: string | null = null;
+    let os: string | null = null;
+    let device: string | null = null;
+
+    if (/Edg\//i.test(ua)) browser = 'Edge';
+    else if (/OPR|Opera/i.test(ua)) browser = 'Opera';
+    else if (/Chrome/i.test(ua) && !/Chromium|Edg/i.test(ua))
+      browser = 'Chrome';
+    else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+    else if (/Firefox/i.test(ua)) browser = 'Firefox';
+
+    if (/Windows NT/i.test(ua)) os = 'Windows';
+    else if (/Mac OS X/i.test(ua)) os = 'macOS';
+    else if (/Android/i.test(ua)) os = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+    else if (/Linux/i.test(ua)) os = 'Linux';
+
+    if (/Mobile|Android|iPhone/i.test(ua)) device = 'Mobile';
+    else if (/Tablet|iPad/i.test(ua)) device = 'Tablet';
+    else device = 'Desktop';
+
+    return { device, browser, os };
   }
 
   async refresh(userId: string, refreshToken: string) {

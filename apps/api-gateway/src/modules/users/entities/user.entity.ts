@@ -8,6 +8,11 @@ export class UserEntity {
   role: Role;
   isEmailVerified: boolean;
   createdAt: Date;
+  avatarUrl: string | null;
+  position: string | null;
+  phone: string | null;
+  telegram: string | null;
+  updatedAt: Date;
 
   @Exclude()
   passwordHash: string;

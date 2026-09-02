@@ -34,14 +34,35 @@ model User {
   isEmailVerified               Boolean   @default(false)
   emailVerificationToken        String?   @unique
   emailVerificationTokenExpires DateTime?
+  avatarUrl                     String?
+  position                      String?
+  phone                         String?
+  telegram                      String?
   createdAt                     DateTime  @default(now())
   updatedAt                     DateTime  @updatedAt
 
   authoredTasks Task[] @relation("AuthoredTasks")
   assignedTasks Task[] @relation("AssignedTasks")
   notifications Notification[]
+  visits        Visit[]
 
   @@map("users")
+}
+
+model Visit {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String
+  userAgent String
+  device    String?
+  browser   String?
+  os        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("visits")
 }
 
 model Task {
