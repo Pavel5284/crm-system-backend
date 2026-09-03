@@ -20,15 +20,7 @@ export class UpdateCustomerDto {
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Base64 data URI (data:image/png;base64,...) или пустая строка для дефолтной аватары',
-    example: 'data:image/png;base64,iVBORw0KGgo...',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(7_000_000)
-  avatarUrl?: string;
+  // avatar — отдельный эндпоинт POST/DELETE /customers/:id/avatar
 
   @ApiPropertyOptional({ example: 'Реклама' })
   @IsOptional()

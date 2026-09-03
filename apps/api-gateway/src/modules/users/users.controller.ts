@@ -5,6 +5,7 @@ import {
   Get,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -156,6 +157,31 @@ export class UsersController {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  @Get('search')
+  async search(@CurrentUser('id') userId: string, @Query('q') q: string) {
+    const query = (q || '').trim();
+    if (!query) return [];
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { not: userId },
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatarUrl: true,
+        position: true,
+      },
+      take: 20,
+      orderBy: { name: 'asc' },
+    });
+    return users;
   }
 
   @Roles(Role.ADMIN)

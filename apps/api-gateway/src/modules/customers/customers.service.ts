@@ -63,10 +63,35 @@ export class CustomersService {
       data: {
         name: dto.name,
         email,
-        avatarUrl: dto.avatarUrl,
         fromSource: dto.fromSource,
       },
       select: CUSTOMER_SELECT,
     });
+  }
+
+  async updateAvatar(id: string, avatarUrl: string) {
+    const existing = await this.prisma.customer.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException(`Клиент ${id} не найден`);
+    await this.prisma.customer.update({
+      where: { id },
+      data: { avatarUrl },
+    });
+    return { success: true };
+  }
+
+  async deleteAvatar(id: string) {
+    const existing = await this.prisma.customer.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException(`Клиент ${id} не найден`);
+    await this.prisma.customer.update({
+      where: { id },
+      data: { avatarUrl: '' },
+    });
+    return { success: true };
   }
 }
