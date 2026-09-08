@@ -55,7 +55,8 @@ import { TaskRemindersProcessor } from "./tasks/task-reminders.processor";
       },
       inject: [ConfigService],
     }),
-    ...(process.env.NODE_ENV === "test"
+    // На Render VALKEY_URL может отсутствовать - тогда BullMQ отключается (кэш и напоминания работать не будут, но сервис стартует)
+    ...(process.env.NODE_ENV === "test" || !process.env.VALKEY_URL
       ? []
       : [
           BullModule.forRootAsync({
@@ -70,7 +71,9 @@ import { TaskRemindersProcessor } from "./tasks/task-reminders.processor";
   controllers: [TasksController],
   providers: [
     TasksService,
-    ...(process.env.NODE_ENV === "test" ? [] : [TaskRemindersProcessor]),
+    ...(process.env.NODE_ENV === "test" || !process.env.VALKEY_URL
+      ? []
+      : [TaskRemindersProcessor]),
   ],
 })
 export class AppModule {}

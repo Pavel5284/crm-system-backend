@@ -1,0 +1,111 @@
+# Render Blueprint для CRM System Backend
+# Вариант 2: Render (бесплатные Web Services) + Neon (Postgres) + Upstash (Redis) + CloudAMQP (RabbitMQ)
+#
+# СОВМЕСТИМОСТЬ С VPS: этот файл использует `env: node` и НЕ трогает docker/Dockerfile и docker/docker-compose.yml.
+# VPS деплой (`docker compose -f docker/docker-compose.yml up -d --build` + .env.production) работает как раньше без изменений.
+# Render деплой идет отдельно через этот Blueprint. Можешь в любой момент вернуться на VPS - ничего переписывать не нужно.
+#
+# Как деплоить на Render:
+# 1. Залей репозиторий на GitHub
+# 2. dashboard.render.com -> New -> Blueprint -> выбери репозиторий
+# 3. Render прочитает этот render.yaml и создаст 3 сервиса
+# 4. При создании укажи значения для DATABASE_URL, RABBITMQ_URL, VALKEY_URL, JWT секретов
+# 5. После первого деплоя api-gateway автоматически прогонит `prisma migrate deploy`
+#
+# Если твой репозиторий - монорепо C:\projects\crm-system (содержит crm-system-backend + crm-system-vue),
+# то используй копию этого файла в корне монорепо (../render.yaml) - там уже `rootDir: crm-system-backend`.
+
+services:
+  # ──────────────────────────────────────────────────────────────
+  # 1. API Gateway - единственный публичный сервис (туда стучится фронт)
+  # ──────────────────────────────────────────────────────────────
+  - type: web
+    name: crm-api-gateway
+    env: node
+    plan: free
+    region: frankfurt
+    branch: main
+    # rootDir: crm-system-backend # раскомментируй если render.yaml лежит в корне монорепо
+    buildCommand: corepack enable && corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build api-gateway
+    startCommand: npx prisma migrate deploy && node dist/apps/api-gateway/src/main.js
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false # вставь URL из Neon: postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require
+      - key: RABBITMQ_URL
+        sync: false # вставь URL из CloudAMQP: amqps://user:pass@host/vhost
+      - key: VALKEY_URL
+        sync: false # вставь URL из Upstash: rediss://:pass@host:6379 (опционально, без него кэш/Bull отключится)
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false # https://твой-фронт.vercel.app или * для теста
+      - key: FRONTEND_URL
+        sync: false
+
+  # ──────────────────────────────────────────────────────────────
+  # 2. Tasks Service - микро-сервис задач (слушает RabbitMQ очередь tasks)
+  # На бесплатном плане Render нет Private Services, поэтому делаем Web Service.
+  # HealthCheck обязателен, иначе Render считает деплой упавшим.
+  # ──────────────────────────────────────────────────────────────
+  - type: web
+    name: crm-tasks-service
+    env: node
+    plan: free
+    region: frankfurt
+    branch: main
+    # rootDir: crm-system-backend
+    buildCommand: corepack enable && corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build tasks-service
+    startCommand: node dist/apps/tasks-service/src/main.js
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HEALTH_PORT
+        value: 10000
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+      - key: VALKEY_URL
+        sync: false
+
+  # ──────────────────────────────────────────────────────────────
+  # 3. Notifications Service - микро-сервис уведомлений
+  # ──────────────────────────────────────────────────────────────
+  - type: web
+    name: crm-notifications-service
+    env: node
+    plan: free
+    region: frankfurt
+    branch: main
+    # rootDir: crm-system-backend
+    buildCommand: corepack enable && corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build notifications-service
+    startCommand: node dist/apps/notifications-service/src/main.js
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HEALTH_PORT
+        value: 10000
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
