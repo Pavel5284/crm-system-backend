@@ -27,7 +27,7 @@ services:
     branch: main
     # rootDir: crm-system-backend # раскомментируй если render.yaml лежит в корне монорепо
     buildCommand: corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build api-gateway
-    startCommand: npx prisma migrate deploy && node dist/apps/api-gateway/src/main.js
+    startCommand: npx prisma migrate deploy && node dist/apps/api-gateway/apps/api-gateway/src/main.js
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
@@ -67,7 +67,7 @@ services:
     branch: main
     # rootDir: crm-system-backend
     buildCommand: corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build tasks-service
-    startCommand: node dist/apps/tasks-service/src/main.js
+    startCommand: node dist/apps/tasks-service/apps/tasks-service/src/main.js
     healthCheckPath: /health
     autoDeploy: false
     envVars:
@@ -95,7 +95,7 @@ services:
     branch: main
     # rootDir: crm-system-backend
     buildCommand: corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build notifications-service
-    startCommand: node dist/apps/notifications-service/src/main.js
+    startCommand: node dist/apps/notifications-service/apps/notifications-service/src/main.js
     healthCheckPath: /health
     autoDeploy: false
     envVars:

@@ -30,8 +30,8 @@ COPY --from=build /usr/src/app/prisma ./prisma
 COPY --from=build /usr/src/app/prisma.config.ts ./prisma.config.ts
 COPY --from=build /usr/src/app/package.json ./package.json
 # Авто-миграции: на VPS и на Render `npx prisma migrate deploy` идемпотентен.
-# Если хочешь отключить авто-миграции на VPS (ручной `prisma migrate deploy`), замени CMD на: node dist/src/main.js
-# Для обратной совместимости: если DATABASE_URL недоступен, контейнер перезапустится (restart: unless-stopped).
+# Если хочешь отключить авто-миграции на VPS (ручной `prisma migrate deploy`), замени CMD на: node dist/apps/${APP_NAME}/src/main.js
+# Фикс для текущего outDir: nest build дает dist/apps/<app>/apps/<app>/src/main.js, после COPY становится dist/apps/<app>/src/main.js
 USER node
 EXPOSE 3000 3001
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/apps/${APP_NAME}/src/main.js"]
