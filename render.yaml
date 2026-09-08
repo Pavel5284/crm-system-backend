@@ -26,7 +26,7 @@ services:
     region: frankfurt
     branch: main
     # rootDir: crm-system-backend # раскомментируй если render.yaml лежит в корне монорепо
-    buildCommand: npm i -g pnpm@11.22.0 --force && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build api-gateway
+    buildCommand: corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build api-gateway
     startCommand: npx prisma migrate deploy && node dist/apps/api-gateway/src/main.js
     healthCheckPath: /api/health
     autoDeploy: false
@@ -66,7 +66,7 @@ services:
     region: frankfurt
     branch: main
     # rootDir: crm-system-backend
-    buildCommand: npm i -g pnpm@11.22.0 --force && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build tasks-service
+    buildCommand: corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build tasks-service
     startCommand: node dist/apps/tasks-service/src/main.js
     healthCheckPath: /health
     autoDeploy: false
@@ -94,7 +94,7 @@ services:
     region: frankfurt
     branch: main
     # rootDir: crm-system-backend
-    buildCommand: npm i -g pnpm@11.22.0 --force && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build notifications-service
+    buildCommand: corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build notifications-service
     startCommand: node dist/apps/notifications-service/src/main.js
     healthCheckPath: /health
     autoDeploy: false
