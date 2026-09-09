@@ -11,6 +11,9 @@ export class EmailService {
   private readonly brevoSenderName: string | undefined;
   private readonly resendApiKey: string | undefined;
   private readonly resendFrom: string;
+  private readonly elasticApiKey: string | undefined;
+  private readonly elasticFrom: string;
+  private readonly elasticFromName: string | undefined;
 
   constructor(private readonly configService: ConfigService) {
     const host = this.configService.get<string>('SMTP_HOST');
@@ -27,9 +30,18 @@ export class EmailService {
       (this.configService.get<string>('RESEND_FROM') ??
         this.configService.get<string>('SMTP_FROM') ??
         'onboarding@resend.dev') as string;
+    this.elasticApiKey = this.configService.get<string>('ELASTIC_API_KEY');
+    this.elasticFrom =
+      (this.configService.get<string>('ELASTIC_FROM') ??
+        this.configService.get<string>('SMTP_FROM') ??
+        'portfolio.pavel528418@gmail.com') as string;
+    this.elasticFromName =
+      this.configService.get<string>('ELASTIC_FROM_NAME') ?? 'Noname CRM';
 
     // HTTP API (443) работает на Render free, SMTP 587/465 блочится (ENETUNREACH/ETIMEDOUT)
-    if (this.resendApiKey) {
+    if (this.elasticApiKey) {
+      this.logger.log('Email via Elastic Email HTTP API enabled');
+    } else if (this.resendApiKey) {
       this.logger.log('Email via Resend HTTP API enabled');
     } else if (this.brevoApiKey) {
       this.logger.log('Email via Brevo HTTP API enabled');
@@ -71,7 +83,36 @@ export class EmailService {
     `;
     const text = `Привет, ${name}! Подтвердите email: ${verifyUrl} (действует 24 часа)`;
 
-    // Приоритет: Resend > Brevo > SMTP (Resend/Brevo через 443, SMTP на Render блочится)
+    // Приоритет: Elastic > Resend > Brevo > SMTP (HTTP 443 не блочится на Render)
+    if (this.elasticApiKey) {
+      try {
+        const params = new URLSearchParams({
+          apikey: this.elasticApiKey,
+          from: this.elasticFrom,
+          fromName: this.elasticFromName,
+          to: email,
+          subject,
+          bodyHtml: html,
+          bodyText: text,
+          isTransactional: 'true',
+        });
+        const res = await fetch(`https://api.elasticemail.com/v2/email/send?${params.toString()}`, {
+          method: 'POST',
+        });
+        const body = await res.text();
+        if (!res.ok || body.includes('"success":false')) {
+          throw new Error(`Elastic ${res.status}: ${body}`);
+        }
+        this.logger.log(`Verification email sent via Elastic to ${email}: ${body}`);
+        return;
+      } catch (err) {
+        const e = err as Error;
+        this.logger.error(`Elastic send failed to ${email}: ${e.message}`, e.stack);
+        this.logger.log(`[FALLBACK] verification link for ${email}: ${verifyUrl}`);
+        return;
+      }
+    }
+
     if (this.resendApiKey) {
       try {
         const res = await fetch('https://api.resend.com/emails', {

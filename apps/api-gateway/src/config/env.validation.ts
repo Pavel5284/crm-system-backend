@@ -19,6 +19,9 @@ const envSchema = baseEnvSchema.extend({
   BREVO_SENDER_NAME: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().optional(),
+  ELASTIC_API_KEY: z.string().optional(),
+  ELASTIC_FROM: z.string().optional(),
+  ELASTIC_FROM_NAME: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
