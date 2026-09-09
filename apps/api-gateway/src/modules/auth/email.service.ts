@@ -10,7 +10,7 @@ export class EmailService {
   private readonly brevoSenderEmail: string | undefined;
   private readonly brevoSenderName: string | undefined;
   private readonly resendApiKey: string | undefined;
-  private readonly resendFrom: string | undefined;
+  private readonly resendFrom: string;
 
   constructor(private readonly configService: ConfigService) {
     const host = this.configService.get<string>('SMTP_HOST');
@@ -24,9 +24,9 @@ export class EmailService {
     this.brevoSenderName = this.configService.get<string>('BREVO_SENDER_NAME');
     this.resendApiKey = this.configService.get<string>('RESEND_API_KEY');
     this.resendFrom =
-      this.configService.get<string>('RESEND_FROM') ??
-      this.configService.get<string>('SMTP_FROM') ??
-      'onboarding@resend.dev';
+      (this.configService.get<string>('RESEND_FROM') ??
+        this.configService.get<string>('SMTP_FROM') ??
+        'onboarding@resend.dev') as string;
 
     // HTTP API (443) работает на Render free, SMTP 587/465 блочится (ENETUNREACH/ETIMEDOUT)
     if (this.resendApiKey) {
