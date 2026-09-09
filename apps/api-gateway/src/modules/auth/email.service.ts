@@ -14,16 +14,25 @@ export class EmailService {
     const pass = this.configService.get<string>('SMTP_PASS');
 
     if (host && port) {
+      // На Render free IPv6 до Gmail блочится (ENETUNREACH 2a00:...:587), форсим IPv4
+      // Если host == smtp.gmail.com пробуем сразу IPv4 адрес + servername для TLS
+      const isGmail = host === 'smtp.gmail.com';
+      const smtpHost = isGmail ? '142.250.110.108' : host;
+      const tls = isGmail ? { servername: 'smtp.gmail.com' } : undefined;
       this.transporter = nodemailer.createTransport({
-        host,
+        host: smtpHost,
         port,
         secure: port === 465,
         auth: user && pass ? { user, pass } : undefined,
         family: 4,
+        tls,
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 10000,
       } as any);
+      if (isGmail) {
+        this.logger.log(`SMTP Gmail forced to IPv4 ${smtpHost}: ${port}`);
+      }
     }
   }
 
