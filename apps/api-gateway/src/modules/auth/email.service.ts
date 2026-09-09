@@ -6,25 +6,16 @@ import * as nodemailer from 'nodemailer';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter | null = null;
-  private readonly brevoApiKey: string | undefined;
-  private readonly brevoSenderEmail: string | undefined;
-  private readonly brevoSenderName: string | undefined;
 
   constructor(private readonly configService: ConfigService) {
     const host = this.configService.get<string>('SMTP_HOST');
     const port = this.configService.get<number>('SMTP_PORT');
     const user = this.configService.get<string>('SMTP_USER');
     const pass = this.configService.get<string>('SMTP_PASS');
-    this.brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
-    this.brevoSenderEmail =
-      this.configService.get<string>('BREVO_SENDER_EMAIL') ??
-      this.configService.get<string>('SMTP_FROM');
-    this.brevoSenderName = this.configService.get<string>('BREVO_SENDER_NAME');
 
-    // Brevo HTTP API (порт 443) работает на Render free, в отличие от SMTP 587/465 (ENETUNREACH/ETIMEDOUT)
-    if (this.brevoApiKey) {
-      this.logger.log('Email via Brevo HTTP API enabled');
-    } else if (host && port) {
+    if (host && port) {
+      // На Render free IPv6 до Gmail блочится (ENETUNREACH 2a00:...:587), форсим IPv4
+      // Если host == smtp.gmail.com пробуем сразу IPv4 адрес + servername для TLS
       const isGmail = host === 'smtp.gmail.com';
       const smtpHost = isGmail ? '142.250.110.108' : host;
       const tls = isGmail ? { servername: 'smtp.gmail.com' } : undefined;
@@ -62,41 +53,6 @@ export class EmailService {
     `;
     const text = `Привет, ${name}! Подтвердите email: ${verifyUrl} (действует 24 часа)`;
 
-    // Приоритет: Brevo HTTP API (работает на Render), затем SMTP, затем DEV лог
-    if (this.brevoApiKey) {
-      try {
-        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'api-key': this.brevoApiKey,
-            'content-type': 'application/json',
-            accept: 'application/json',
-          },
-          body: JSON.stringify({
-            sender: {
-              email: this.brevoSenderEmail ?? from,
-              name: this.brevoSenderName ?? 'Noname CRM',
-            },
-            to: [{ email, name }],
-            subject,
-            htmlContent: html,
-            textContent: text,
-          }),
-        });
-        if (!res.ok) {
-          const body = await res.text();
-          throw new Error(`Brevo ${res.status}: ${body}`);
-        }
-        this.logger.log(`Verification email sent via Brevo to ${email}`);
-        return;
-      } catch (err) {
-        const e = err as Error;
-        this.logger.error(`Brevo send failed to ${email}: ${e.message}`, e.stack);
-        this.logger.log(`[FALLBACK] verification link for ${email}: ${verifyUrl}`);
-        return;
-      }
-    }
-
     if (!this.transporter) {
       this.logger.log(`[DEV] verification link for ${email}: ${verifyUrl}`);
       return;
@@ -111,7 +67,10 @@ export class EmailService {
         `Failed to send verification email to ${email}: ${e.message} code=${e.code} response=${e.response}`,
         e.stack,
       );
-      this.logger.log(`[FALLBACK] verification link for ${email}: ${verifyUrl}`);
+      // не пробрасываем — регистрация уже создана, ссылку всё равно видно в логах
+      this.logger.log(
+        `[FALLBACK] verification link for ${email}: ${verifyUrl}`,
+      );
     }
   }
 }
