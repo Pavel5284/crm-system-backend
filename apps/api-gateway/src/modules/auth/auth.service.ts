@@ -23,28 +23,40 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
+  private canResendVerification(user: { emailVerificationTokenExpires: Date | null; updatedAt: Date }): boolean {
+    // токен живет 24ч, считаем lastSent = expires - 24ч
+    if (!user.emailVerificationTokenExpires) return true;
+    const lastSentAt = user.emailVerificationTokenExpires.getTime() - 24 * 60 * 60 * 1000;
+    // альтернативно смотрим updatedAt если токен не трогали (более надежно для повторных register)
+    const lastUpdate = user.updatedAt.getTime();
+    const lastSent = Math.max(lastSentAt, lastUpdate);
+    return Date.now() - lastSent >= 5 * 60 * 1000;
+  }
+
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
     if (existing) {
       if (!existing.isEmailVerified) {
-        // переотправляем письмо, не раскрывая что email уже есть
-        const token = randomBytes(32).toString('hex');
-        await this.prisma.user.update({
-          where: { id: existing.id },
-          data: {
-            emailVerificationToken: token,
-            emailVerificationTokenExpires: new Date(
-              Date.now() + 24 * 60 * 60 * 1000,
-            ),
-          },
-        });
-        await this.emailService.sendVerificationEmail(
-          existing.email,
-          existing.name,
-          token,
-        );
+        // переотправляем письмо c лимитом 5 мин, не раскрывая что email уже есть
+        if (this.canResendVerification(existing)) {
+          const token = randomBytes(32).toString('hex');
+          await this.prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              emailVerificationToken: token,
+              emailVerificationTokenExpires: new Date(
+                Date.now() + 24 * 60 * 60 * 1000,
+              ),
+            },
+          });
+          await this.emailService.sendVerificationEmail(
+            existing.email,
+            existing.name,
+            token,
+          );
+        }
       }
       throw new ConflictException('Пользователь с таким email уже существует');
     }
@@ -110,6 +122,11 @@ export class AuthService {
     if (!user) throw new BadRequestException('Пользователь не найден');
     if (user.isEmailVerified)
       throw new BadRequestException('Email уже подтверждён');
+    if (!this.canResendVerification(user)) {
+      throw new BadRequestException(
+        'Письмо уже отправлено недавно. Повторите через 5 минут',
+      );
+    }
     const token = randomBytes(32).toString('hex');
     await this.prisma.user.update({
       where: { id: user.id },
@@ -133,8 +150,23 @@ export class AuthService {
     const valid = await argon2.verify(user.passwordHash, dto.password);
     if (!valid) throw new UnauthorizedException('Неверный email или пароль');
 
-    if (!user.isEmailVerified)
+    if (!user.isEmailVerified) {
+      // при логине тоже ресендим, но не чаще 5 мин
+      if (this.canResendVerification(user)) {
+        const token = randomBytes(32).toString('hex');
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            emailVerificationToken: token,
+            emailVerificationTokenExpires: new Date(
+              Date.now() + 24 * 60 * 60 * 1000,
+            ),
+          },
+        });
+        await this.emailService.sendVerificationEmail(user.email, user.name, token);
+      }
       throw new UnauthorizedException('Email не подтверждён. Проверьте почту');
+    }
 
     const tokens = await this.issueTokens(user.id, user.email, user.role);
 
