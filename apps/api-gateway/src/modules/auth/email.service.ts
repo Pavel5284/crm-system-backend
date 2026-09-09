@@ -9,6 +9,8 @@ export class EmailService {
   private readonly brevoApiKey: string | undefined;
   private readonly brevoSenderEmail: string | undefined;
   private readonly brevoSenderName: string | undefined;
+  private readonly resendApiKey: string | undefined;
+  private readonly resendFrom: string | undefined;
 
   constructor(private readonly configService: ConfigService) {
     const host = this.configService.get<string>('SMTP_HOST');
@@ -20,9 +22,16 @@ export class EmailService {
       this.configService.get<string>('BREVO_SENDER_EMAIL') ??
       this.configService.get<string>('SMTP_FROM');
     this.brevoSenderName = this.configService.get<string>('BREVO_SENDER_NAME');
+    this.resendApiKey = this.configService.get<string>('RESEND_API_KEY');
+    this.resendFrom =
+      this.configService.get<string>('RESEND_FROM') ??
+      this.configService.get<string>('SMTP_FROM') ??
+      'onboarding@resend.dev';
 
-    // Brevo HTTP API (порт 443) работает на Render free, в отличие от SMTP 587/465 (ENETUNREACH/ETIMEDOUT)
-    if (this.brevoApiKey) {
+    // HTTP API (443) работает на Render free, SMTP 587/465 блочится (ENETUNREACH/ETIMEDOUT)
+    if (this.resendApiKey) {
+      this.logger.log('Email via Resend HTTP API enabled');
+    } else if (this.brevoApiKey) {
       this.logger.log('Email via Brevo HTTP API enabled');
     } else if (host && port) {
       const isGmail = host === 'smtp.gmail.com';
@@ -62,7 +71,39 @@ export class EmailService {
     `;
     const text = `Привет, ${name}! Подтвердите email: ${verifyUrl} (действует 24 часа)`;
 
-    // Приоритет: Brevo HTTP API (работает на Render), затем SMTP, затем DEV лог
+    // Приоритет: Resend > Brevo > SMTP (Resend/Brevo через 443, SMTP на Render блочится)
+    if (this.resendApiKey) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: this.resendFrom.includes('@') && this.resendFrom.includes('<')
+              ? this.resendFrom
+              : `Noname CRM <${this.resendFrom}>`,
+            to: [email],
+            subject,
+            html,
+            text,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Resend ${res.status}: ${body}`);
+        }
+        this.logger.log(`Verification email sent via Resend to ${email}`);
+        return;
+      } catch (err) {
+        const e = err as Error;
+        this.logger.error(`Resend send failed to ${email}: ${e.message}`, e.stack);
+        this.logger.log(`[FALLBACK] verification link for ${email}: ${verifyUrl}`);
+        return;
+      }
+    }
+
     if (this.brevoApiKey) {
       try {
         const res = await fetch('https://api.brevo.com/v3/smtp/email', {
