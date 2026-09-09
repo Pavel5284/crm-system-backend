@@ -26,59 +26,39 @@ import { Throttle } from '@nestjs/throttler';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private getCookieOpts(isAccess = true) {
+    const isProd = process.env.NODE_ENV === 'production';
+    // http://localhost:3001 -> https://crm-api-gateway... - кросс-сайт, нужен SameSite=None+Secure
+    // локально http + lax тоже работает, для прод ставим none+secure
+    return {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+      path: '/',
+      maxAge: isAccess ? 15 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000,
+    } as const;
+  }
+
   private setAuthCookies(
     res: Response,
     accessToken: string,
     refreshToken: string,
   ) {
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 15 * 60 * 1000,
-    });
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('accessToken', accessToken, this.getCookieOpts(true));
+    res.cookie('refreshToken', refreshToken, this.getCookieOpts(false));
   }
 
   private setRefreshCookie(res: Response, token: string) {
-    res.cookie('refreshToken', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refreshToken', token, this.getCookieOpts(false));
   }
 
   private clearAuthCookies(res: Response) {
-    res.clearCookie('accessToken', {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-    });
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-    });
+    res.clearCookie('accessToken', this.getCookieOpts(true));
+    res.clearCookie('refreshToken', this.getCookieOpts(false));
   }
 
   private clearRefreshCookie(res: Response) {
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-    });
+    res.clearCookie('refreshToken', this.getCookieOpts(false));
   }
 
   @Public()
