@@ -49,9 +49,10 @@ export class EmailService {
       await this.transporter.sendMail({ from, to: email, subject, html, text });
       this.logger.log(`Verification email sent to ${email}`);
     } catch (err) {
+      const e = err as Error & { code?: string; response?: string; responseCode?: number };
       this.logger.error(
-        `Failed to send verification email to ${email}`,
-        err as string,
+        `Failed to send verification email to ${email}: ${e.message} code=${e.code} response=${e.response}`,
+        e.stack,
       );
       // не пробрасываем — регистрация уже создана, ссылку всё равно видно в логах
       this.logger.log(
