@@ -14,6 +14,9 @@ const envSchema = baseEnvSchema.extend({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  BREVO_API_KEY: z.string().optional(),
+  BREVO_SENDER_EMAIL: z.string().optional(),
+  BREVO_SENDER_NAME: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
