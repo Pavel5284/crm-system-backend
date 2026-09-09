@@ -87,9 +87,9 @@ export class EmailService {
     if (this.elasticApiKey) {
       try {
         const params = new URLSearchParams({
-          apikey: this.elasticApiKey,
+          apikey: this.elasticApiKey!,
           from: this.elasticFrom,
-          fromName: this.elasticFromName,
+          fromName: this.elasticFromName ?? 'Noname CRM',
           to: email,
           subject,
           bodyHtml: html,
