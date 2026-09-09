@@ -19,11 +19,13 @@ export class EmailService {
         port,
         secure: port === 465,
         auth: user && pass ? { user, pass } : undefined,
-        family: 4, // Render free IPv6 ENETUNREACH 2a00:...:587 -> форсим IPv4
+        // Render free IPv6 ENETUNREACH 2a00:...:587 -> форсим IPv4
+        // @ts-expect-error nodemailer types: family/timeouts есть в SMTPTransport.Options
+        family: 4,
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 10000,
-      });
+      } as any);
     }
   }
 
