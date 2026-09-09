@@ -63,7 +63,10 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(dto.password);
     const isTest = process.env.NODE_ENV === 'test';
-    if (isTest) {
+    const skipVerification =
+      process.env.SKIP_EMAIL_VERIFICATION === 'true' ||
+      this.configService.get<string>('SKIP_EMAIL_VERIFICATION') === 'true';
+    if (isTest || skipVerification) {
       const user = await this.prisma.user.create({
         data: {
           email: dto.email,
@@ -150,7 +153,10 @@ export class AuthService {
     const valid = await argon2.verify(user.passwordHash, dto.password);
     if (!valid) throw new UnauthorizedException('Неверный email или пароль');
 
-    if (!user.isEmailVerified) {
+    const skipLoginVerification =
+      process.env.SKIP_EMAIL_VERIFICATION === 'true' ||
+      this.configService.get<string>('SKIP_EMAIL_VERIFICATION') === 'true';
+    if (!user.isEmailVerified && !skipLoginVerification) {
       // при логине тоже ресендим, но не чаще 5 мин
       if (this.canResendVerification(user)) {
         const token = randomBytes(32).toString('hex');
