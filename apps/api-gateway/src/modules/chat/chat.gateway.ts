@@ -11,12 +11,13 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { parseCorsOrigins } from '@app/shared';
 
 @Injectable()
 @WebSocketGateway({
   namespace: 'chat',
   cors: {
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3001',
+    origin: parseCorsOrigins(process.env.CORS_ORIGIN),
     credentials: true,
   },
 })

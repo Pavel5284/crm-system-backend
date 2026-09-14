@@ -6,7 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
-import { QUEUES } from '@app/shared';
+import { QUEUES, parseCorsOrigins } from '@app/shared';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -30,7 +30,7 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '10mb', extended: true }));
   app.use(helmet());
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3001',
+    origin: parseCorsOrigins(process.env.CORS_ORIGIN),
     credentials: true,
   });
   app.setGlobalPrefix('api');

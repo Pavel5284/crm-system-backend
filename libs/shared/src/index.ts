@@ -4,6 +4,7 @@ export * from "./types/auth-user.interface";
 export * from "./interfaces/task-messages.interface";
 export * from "./interfaces/notification-messages.interface";
 export * from "./utils/rpc.util";
+export * from "./utils/cors.util";
 export * from "./config/base-env.schema";
 export * from "./decorators/public.decorator";
 export * from "./health/health.controller";
