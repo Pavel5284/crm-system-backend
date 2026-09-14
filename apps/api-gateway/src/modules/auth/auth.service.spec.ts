@@ -13,7 +13,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let prisma: { user: Record<'findUnique' | 'create' | 'update', jest.Mock> };
   let jwtService: { signAsync: jest.Mock };
-  let configService: { getOrThrow: jest.Mock };
+  let configService: { get: jest.Mock; getOrThrow: jest.Mock };
   let emailService: { sendVerificationEmail: jest.Mock };
 
   beforeEach(async () => {
@@ -22,6 +22,7 @@ describe('AuthService', () => {
     };
     jwtService = { signAsync: jest.fn().mockResolvedValue('signed-token') };
     configService = {
+      get: jest.fn(),
       getOrThrow: jest.fn((key: string) => `value-for-${key}`),
     };
     emailService = {
