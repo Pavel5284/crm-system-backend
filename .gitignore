@@ -3,6 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.e2e.example
 !.env.production.example
 !.env.example.render
 *.log
