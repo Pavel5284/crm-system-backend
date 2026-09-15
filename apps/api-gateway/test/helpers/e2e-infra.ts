@@ -9,6 +9,12 @@ import { Test } from '@nestjs/testing';
 import { execSync } from 'child_process';
 import { Server } from 'http';
 import * as amqp from 'amqplib';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Локальные e2e-настройки (не коммитятся, см. .env.e2e.example).
+// Уже выставленные переменные окружения — важнее.
+dotenv.config({ path: path.resolve(process.cwd(), '.env.e2e') });
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import {
   PostgreSqlContainer,
@@ -31,27 +37,43 @@ export interface E2eInfra {
 export async function startE2eInfra(
   options: E2eInfraOptions = {},
 ): Promise<E2eInfra> {
-  const postgres: StartedPostgreSqlContainer = await new PostgreSqlContainer(
-    'postgres:18-alpine',
-  )
-    .withDatabase('taskmanager_test')
-    .withUsername('taskmanager')
-    .withPassword('taskmanager')
-    .start();
+  // Внешний режим (без Docker): E2E_DATABASE_URL указывает на выделенную
+  // тестовую БД (НЕ прод!), E2E_RABBITMQ_URL — на отдельный vhost.
+  // Иначе поднимаем одноразовые контейнеры (CI-путь).
+  const externalDb = process.env.E2E_DATABASE_URL;
+  const externalMq = process.env.E2E_RABBITMQ_URL;
 
-  const rabbitmq: StartedTestContainer = await new GenericContainer(
-    'rabbitmq:4-management',
-  )
-    .withEnvironment({
-      RABBITMQ_DEFAULT_USER: 'taskmanager',
-      RABBITMQ_DEFAULT_PASS: 'taskmanager',
-    })
-    .withExposedPorts(5672)
-    .withWaitStrategy(Wait.forListeningPorts())
-    .start();
+  let stopContainers: (() => Promise<void>) | null = null;
+  if (externalDb && externalMq) {
+    process.env.DATABASE_URL = externalDb;
+    process.env.RABBITMQ_URL = externalMq;
+    await wipeTestDatabase();
+  } else {
+    const postgres: StartedPostgreSqlContainer = await new PostgreSqlContainer(
+      'postgres:18-alpine',
+    )
+      .withDatabase('taskmanager_test')
+      .withUsername('taskmanager')
+      .withPassword('taskmanager')
+      .start();
 
-  process.env.DATABASE_URL = postgres.getConnectionUri();
-  process.env.RABBITMQ_URL = `amqp://taskmanager:taskmanager@${rabbitmq.getHost()}:${rabbitmq.getMappedPort(5672)}`;
+    const rabbitmq: StartedTestContainer = await new GenericContainer(
+      'rabbitmq:4-management',
+    )
+      .withEnvironment({
+        RABBITMQ_DEFAULT_USER: 'taskmanager',
+        RABBITMQ_DEFAULT_PASS: 'taskmanager',
+      })
+      .withExposedPorts(5672)
+      .withWaitStrategy(Wait.forListeningPorts())
+      .start();
+
+    process.env.DATABASE_URL = postgres.getConnectionUri();
+    process.env.RABBITMQ_URL = `amqp://taskmanager:taskmanager@${rabbitmq.getHost()}:${rabbitmq.getMappedPort(5672)}`;
+    stopContainers = async () => {
+      await Promise.allSettled([rabbitmq.stop(), postgres.stop()]);
+    };
+  }
   delete process.env.VALKEY_URL;
   process.env.JWT_ACCESS_SECRET = 'test-access-secret-32-characters-minimum';
   process.env.JWT_ACCESS_EXPIRES_IN = '15m';
@@ -152,7 +174,27 @@ export async function startE2eInfra(
       if (notificationsApp) await notificationsApp.close();
       await tasksApp.close();
       await app.close();
-      await Promise.allSettled([rabbitmq.stop(), postgres.stop()]);
+      if (stopContainers) await stopContainers();
     },
   };
+}
+
+/** Чистит внешнюю тестовую БД перед прогоном (фиксированные email в спеках). */
+async function wipeTestDatabase(): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Pool } = require('pg') as typeof import('pg');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    const { rows } = await pool.query(
+      `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations'`,
+    );
+    if (rows.length > 0) {
+      const tables = rows
+        .map((r: { tablename: string }) => `"public"."${r.tablename}"`)
+        .join(', ');
+      await pool.query(`TRUNCATE ${tables} CASCADE`);
+    }
+  } finally {
+    await pool.end();
+  }
 }
