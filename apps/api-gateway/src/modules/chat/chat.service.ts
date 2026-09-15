@@ -135,6 +135,14 @@ export class ChatService {
     return message;
   }
 
+  async markAsRead(userId: string, partnerId: string) {
+    const { count } = await this.prisma.directMessage.updateMany({
+      where: { senderId: partnerId, receiverId: userId, read: false },
+      data: { read: true },
+    });
+    return { read: count };
+  }
+
   async getUnreadCount(userId: string) {
     const count = await this.prisma.directMessage.count({
       where: { receiverId: userId, read: false },

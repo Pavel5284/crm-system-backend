@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   Query,
   Param,
@@ -44,6 +45,14 @@ export class ChatController {
     @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
   ) {
     return this.chatService.getMessages(user.id, partnerId, limit, offset);
+  }
+
+  @Patch('messages/:partnerId/read')
+  markAsRead(
+    @CurrentUser() user: AuthUser,
+    @Param('partnerId', ParseUUIDPipe) partnerId: string,
+  ) {
+    return this.chatService.markAsRead(user.id, partnerId);
   }
 
   @Get('unread-count')
