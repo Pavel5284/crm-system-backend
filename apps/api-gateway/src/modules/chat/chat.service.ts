@@ -154,7 +154,11 @@ export class ChatService {
       },
       data: { read: true },
     });
-    return { read: count };
+    return {
+      read: count,
+      senderId: anchor.senderId,
+      upToCreatedAt: anchor.createdAt,
+    };
   }
 
   async getUnreadCount(userId: string) {

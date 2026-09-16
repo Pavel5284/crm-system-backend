@@ -49,8 +49,20 @@ export class ChatController {
   }
 
   @Patch('messages/read')
-  markAsRead(@CurrentUser() user: AuthUser, @Body() dto: MarkMessagesReadDto) {
-    return this.chatService.markAsReadUpTo(user.id, dto.upToMessageId);
+  async markAsRead(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: MarkMessagesReadDto,
+  ) {
+    const result = await this.chatService.markAsReadUpTo(
+      user.id,
+      dto.upToMessageId,
+    );
+    // realtime галочки отправителю: его сообщения вплоть до увиденного прочитаны
+    this.chatGateway.sendToUser(result.senderId, 'chat:read', {
+      readerId: user.id,
+      upToCreatedAt: result.upToCreatedAt,
+    });
+    return { read: result.read };
   }
 
   @Get('unread-count')
