@@ -99,10 +99,15 @@ export class ChatService {
           { senderId: partnerId, receiverId: userId },
         ],
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 100),
       skip: offset,
     });
+
+    // Клиент рисует сверху вниз и скроллит к низу: разворачиваем,
+    // чтобы внизу были самые свежие. Оффсет при таком порядке
+    // корректно уходит в историю (для будущей подгрузки вверх).
+    messages.reverse();
 
     // NB: прочитанность здесь НЕ ставим — её фиксирует отдельный
     // markAsReadUpTo по факту просмотра сообщения на экране.
