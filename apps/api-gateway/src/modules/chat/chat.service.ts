@@ -104,12 +104,8 @@ export class ChatService {
       skip: offset,
     });
 
-    // помечаем входящие как прочитанные
-    await this.prisma.directMessage.updateMany({
-      where: { senderId: partnerId, receiverId: userId, read: false },
-      data: { read: true },
-    });
-
+    // NB: прочитанность здесь НЕ ставим — её фиксирует отдельный
+    // markAsReadUpTo по факту просмотра сообщения на экране.
     return messages;
   }
 
@@ -135,9 +131,22 @@ export class ChatService {
     return message;
   }
 
-  async markAsRead(userId: string, partnerId: string) {
+  /** Помечает входящие от автора сообщения вплоть до увиденного (включительно). */
+  async markAsReadUpTo(userId: string, upToMessageId: string) {
+    const anchor = await this.prisma.directMessage.findUnique({
+      where: { id: upToMessageId },
+      select: { senderId: true, receiverId: true, createdAt: true },
+    });
+    if (!anchor || anchor.receiverId !== userId) {
+      throw new NotFoundException('Сообщение не найдено');
+    }
     const { count } = await this.prisma.directMessage.updateMany({
-      where: { senderId: partnerId, receiverId: userId, read: false },
+      where: {
+        senderId: anchor.senderId,
+        receiverId: userId,
+        read: false,
+        createdAt: { lte: anchor.createdAt },
+      },
       data: { read: true },
     });
     return { read: count };

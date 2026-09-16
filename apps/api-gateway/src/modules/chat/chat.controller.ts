@@ -16,6 +16,7 @@ import type { AuthUser } from '@app/shared';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
+import { MarkMessagesReadDto } from './dto/mark-messages-read.dto';
 
 @ApiTags('chat')
 @ApiBearerAuth()
@@ -47,12 +48,9 @@ export class ChatController {
     return this.chatService.getMessages(user.id, partnerId, limit, offset);
   }
 
-  @Patch('messages/:partnerId/read')
-  markAsRead(
-    @CurrentUser() user: AuthUser,
-    @Param('partnerId', ParseUUIDPipe) partnerId: string,
-  ) {
-    return this.chatService.markAsRead(user.id, partnerId);
+  @Patch('messages/read')
+  markAsRead(@CurrentUser() user: AuthUser, @Body() dto: MarkMessagesReadDto) {
+    return this.chatService.markAsReadUpTo(user.id, dto.upToMessageId);
   }
 
   @Get('unread-count')
