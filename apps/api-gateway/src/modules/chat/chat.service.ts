@@ -55,13 +55,27 @@ export class ChatService {
       if (!map.has(partnerId)) map.set(partnerId, m);
     }
 
+    const unreadBySender = await this.prisma.directMessage.groupBy({
+      by: ['senderId'],
+      where: { receiverId: userId, read: false },
+      _count: { _all: true },
+    });
+    const unreadMap = new Map(
+      unreadBySender.map((u) => [u.senderId, u._count._all]),
+    );
+
     const conversations = Array.from(map.values()).map((lastMessage) => {
       const partner =
         lastMessage.senderId === userId
           ? lastMessage.receiver
           : lastMessage.sender;
+      const partnerId =
+        lastMessage.senderId === userId
+          ? lastMessage.receiverId
+          : lastMessage.senderId;
       return {
         partner,
+        unreadCount: unreadMap.get(partnerId) ?? 0,
         lastMessage: {
           id: lastMessage.id,
           text: lastMessage.text,
@@ -159,6 +173,14 @@ export class ChatService {
       senderId: anchor.senderId,
       upToCreatedAt: anchor.createdAt,
     };
+  }
+
+  async getUnreadDialogsCount(userId: string) {
+    const dialogs = await this.prisma.directMessage.groupBy({
+      by: ['senderId'],
+      where: { receiverId: userId, read: false },
+    });
+    return { count: dialogs.length };
   }
 
   async getUnreadCount(userId: string) {

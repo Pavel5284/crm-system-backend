@@ -70,6 +70,11 @@ export class ChatController {
     return this.chatService.getUnreadCount(user.id);
   }
 
+  @Get('unread-dialogs')
+  getUnreadDialogs(@CurrentUser() user: AuthUser) {
+    return this.chatService.getUnreadDialogsCount(user.id);
+  }
+
   @Post('messages')
   async send(@CurrentUser() user: AuthUser, @Body() dto: SendMessageDto) {
     const message = await this.chatService.sendMessage(
