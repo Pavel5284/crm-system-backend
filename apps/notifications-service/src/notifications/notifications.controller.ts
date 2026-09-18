@@ -21,6 +21,20 @@ export class NotificationsController {
     return this.notificationsService.handleTaskDueSoon(payload);
   }
 
+  @EventPattern(shared.DEAL_EVENTS.STAGE_CHANGED)
+  handleDealStageChanged(
+    @Payload() payload: shared.DealStageChangedEventPayload,
+  ) {
+    return this.notificationsService.handleDealStageChanged(payload);
+  }
+
+  @EventPattern(shared.DEAL_EVENTS.DEADLINE_SOON)
+  handleDealDeadlineSoon(
+    @Payload() payload: shared.DealDeadlineSoonEventPayload,
+  ) {
+    return this.notificationsService.handleDealDeadlineSoon(payload);
+  }
+
   @MessagePattern(shared.NOTIFICATION_PATTERNS.FIND_MINE)
   findMine(@Payload() message: shared.FindMyNotificationsMessage) {
     return this.notificationsService.findMine(message.userId);

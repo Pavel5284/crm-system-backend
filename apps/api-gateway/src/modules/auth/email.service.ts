@@ -2,6 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
+// nodemailer прокидывает family в net.connect (форсирует IPv4),
+// но в @types/nodemailer это поле не объявлено — описываем опции локально.
+type SmtpTransportOptions = {
+  host: string;
+  port: number | undefined;
+  secure: boolean;
+  auth: { user: string; pass: string } | undefined;
+  family?: number;
+  tls: { servername: string } | undefined;
+  connectionTimeout: number;
+  greetingTimeout: number;
+  socketTimeout: number;
+};
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -16,7 +30,7 @@ export class EmailService {
       const isGmail = host === 'smtp.gmail.com';
       const smtpHost = isGmail ? '142.250.110.108' : host;
       const tls = isGmail ? { servername: 'smtp.gmail.com' } : undefined;
-      this.transporter = nodemailer.createTransport({
+      const transportOptions: SmtpTransportOptions = {
         host: smtpHost,
         port,
         secure: port === 465,
@@ -26,7 +40,8 @@ export class EmailService {
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 10000,
-      } as any);
+      };
+      this.transporter = nodemailer.createTransport(transportOptions);
       if (isGmail) {
         this.logger.log(`SMTP Gmail forced to IPv4 ${smtpHost}: ${port}`);
       }
@@ -59,12 +74,18 @@ export class EmailService {
       await this.transporter.sendMail({ from, to: email, subject, html, text });
       this.logger.log(`Verification email sent to ${email}`);
     } catch (err) {
-      const e = err as Error & { code?: string; response?: string; responseCode?: number };
+      const e = err as Error & {
+        code?: string;
+        response?: string;
+        responseCode?: number;
+      };
       this.logger.error(
         `Failed to send verification email to ${email}: ${e.message} code=${e.code} response=${e.response}`,
         e.stack,
       );
-      this.logger.log(`[FALLBACK] verification link for ${email}: ${verifyUrl}`);
+      this.logger.log(
+        `[FALLBACK] verification link for ${email}: ${verifyUrl}`,
+      );
     }
   }
 }

@@ -16,6 +16,8 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { LoggerModule } from 'nestjs-pino';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -41,6 +43,18 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
       },
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]), // по умолчанию 100 запросов в минуту на IP
+    // Без VALKEY_URL BullMQ отключается (как в tasks-service): напоминания
+    // о дедлайнах сделок работать не будут, но сервис стартует.
+    ...(process.env.NODE_ENV === 'test' || !process.env.VALKEY_URL
+      ? []
+      : [
+          BullModule.forRootAsync({
+            useFactory: (config: ConfigService) => ({
+              connection: { url: config.getOrThrow<string>('VALKEY_URL') },
+            }),
+            inject: [ConfigService],
+          }),
+        ]),
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

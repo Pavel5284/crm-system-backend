@@ -23,10 +23,14 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
-  private canResendVerification(user: { emailVerificationTokenExpires: Date | null; updatedAt: Date }): boolean {
+  private canResendVerification(user: {
+    emailVerificationTokenExpires: Date | null;
+    updatedAt: Date;
+  }): boolean {
     // токен живет 24ч, считаем lastSent = expires - 24ч
     if (!user.emailVerificationTokenExpires) return true;
-    const lastSentAt = user.emailVerificationTokenExpires.getTime() - 24 * 60 * 60 * 1000;
+    const lastSentAt =
+      user.emailVerificationTokenExpires.getTime() - 24 * 60 * 60 * 1000;
     // альтернативно смотрим updatedAt если токен не трогали (более надежно для повторных register)
     const lastUpdate = user.updatedAt.getTime();
     const lastSent = Math.max(lastSentAt, lastUpdate);
@@ -169,7 +173,11 @@ export class AuthService {
             ),
           },
         });
-        await this.emailService.sendVerificationEmail(user.email, user.name, token);
+        await this.emailService.sendVerificationEmail(
+          user.email,
+          user.name,
+          token,
+        );
       }
       throw new UnauthorizedException('Email не подтверждён. Проверьте почту');
     }

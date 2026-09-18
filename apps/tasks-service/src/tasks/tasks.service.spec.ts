@@ -1,6 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { RpcException } from "@nestjs/microservices";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { ConfigService } from "@nestjs/config";
 import { getQueueToken } from "@nestjs/bullmq";
 import { Role, TaskPriority, TaskStatus } from "@prisma/client";
 import { PrismaService } from "@app/database";
@@ -18,7 +19,8 @@ describe("TasksService", () => {
   };
   let notificationsClient: { emit: jest.Mock };
   let cache: { get: jest.Mock; set: jest.Mock };
-  let remindersQueue: { add: jest.Mock };
+  let remindersQueue: { add: jest.Mock; remove: jest.Mock };
+  let configService: { get: jest.Mock };
 
   const baseTask = {
     id: "task-1",
@@ -53,7 +55,8 @@ describe("TasksService", () => {
     };
     notificationsClient = { emit: jest.fn() };
     cache = { get: jest.fn(), set: jest.fn() };
-    remindersQueue = { add: jest.fn() };
+    remindersQueue = { add: jest.fn(), remove: jest.fn() };
+    configService = { get: jest.fn().mockReturnValue(undefined) };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -68,6 +71,7 @@ describe("TasksService", () => {
           provide: getQueueToken("task-reminders"),
           useValue: remindersQueue,
         },
+        { provide: ConfigService, useValue: configService },
       ],
     }).compile();
 
@@ -168,6 +172,69 @@ describe("TasksService", () => {
       expect(notificationsClient.emit).toHaveBeenCalledWith(
         TASK_EVENTS.COMPLETED,
         expect.anything(),
+      );
+    });
+  });
+
+  describe("напоминания о дедлайне", () => {
+    const futureDueDate = () =>
+      new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+    it("планирует джобу с валидным jobId при создании с дедлайном", async () => {
+      configService.get.mockReturnValue("redis://localhost:6379");
+      prisma.task.create.mockResolvedValue({
+        ...baseTask,
+        dueDate: new Date(futureDueDate()),
+      });
+
+      await service.create({
+        title: "Test",
+        authorId: "user-author",
+        dueDate: futureDueDate(),
+      });
+
+      expect(remindersQueue.add).toHaveBeenCalledTimes(1);
+      const [, , opts] = remindersQueue.add.mock.calls[0] as [
+        unknown,
+        unknown,
+        { delay: number; jobId: string },
+      ];
+      expect(opts.delay).toBeGreaterThan(0);
+      expect(opts.jobId).toBe("due-soon-task-1");
+      expect(opts.jobId).not.toContain(":");
+    });
+
+    it("не планирует без VALKEY_URL", async () => {
+      prisma.task.create.mockResolvedValue({
+        ...baseTask,
+        dueDate: new Date(futureDueDate()),
+      });
+
+      await service.create({
+        title: "Test",
+        authorId: "user-author",
+        dueDate: futureDueDate(),
+      });
+
+      expect(remindersQueue.add).not.toHaveBeenCalled();
+    });
+
+    it("перепланирует при смене дедлайна", async () => {
+      configService.get.mockReturnValue("redis://localhost:6379");
+      prisma.task.findUnique.mockResolvedValue(baseTask);
+      const dueDate = futureDueDate();
+      prisma.task.update.mockResolvedValue({
+        ...baseTask,
+        dueDate: new Date(dueDate),
+      });
+
+      await service.update("task-1", { dueDate }, requester);
+
+      expect(remindersQueue.remove).toHaveBeenCalledWith("due-soon-task-1");
+      expect(remindersQueue.add).toHaveBeenCalledWith(
+        "due-soon",
+        { taskId: "task-1" },
+        expect.objectContaining({ jobId: "due-soon-task-1" }),
       );
     });
   });

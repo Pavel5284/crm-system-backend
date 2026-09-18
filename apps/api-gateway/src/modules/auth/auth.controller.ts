@@ -33,7 +33,7 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: isProd,
-      sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
       maxAge: isAccess ? 15 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000,
     } as const;

@@ -6,7 +6,7 @@ const envSchema = baseEnvSchema.extend({
     .string()
     .url()
     .optional()
-    .or(z.literal('').transform(() => undefined)),
+    .or(z.literal("").transform(() => undefined)),
   HEALTH_PORT: z.coerce.number().default(3001),
 });
 

@@ -12,6 +12,11 @@ export const TASK_EVENTS = {
   DUE_SOON: "task.due_soon",
 } as const;
 
+export const DEAL_EVENTS = {
+  STAGE_CHANGED: "deal.stage_changed",
+  DEADLINE_SOON: "deal.deadline_soon",
+} as const;
+
 export const NOTIFICATION_PATTERNS = {
   FIND_MINE: "notifications.find_mine",
   MARK_READ: "notifications.mark_read",

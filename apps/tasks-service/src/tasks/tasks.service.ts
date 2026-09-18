@@ -29,7 +29,11 @@ export class TasksService {
     @Optional()
     @InjectQueue("task-reminders")
     private readonly remindersQueue: Queue | undefined,
-    @Optional() private readonly configService: ConfigService | undefined,
+    // @Inject обязателен: у union-типа нет metadata, без него будет undefined
+    // и напоминания никогда не запланируются.
+    @Optional()
+    @Inject(ConfigService)
+    private readonly configService: ConfigService | undefined,
   ) {}
 
   private async scheduleDueDateReminder(task: {
@@ -43,10 +47,11 @@ export class TasksService {
       task.dueDate.getTime() - Date.now() - TasksService.DUE_SOON_THRESHOLD_MS;
     if (delay <= 0) return;
     try {
+      // В jobId нельзя ':' (ограничение BullMQ).
       await this.remindersQueue.add(
         "due-soon",
         { taskId: task.id },
-        { delay, jobId: `due-soon:${task.id}` },
+        { delay, jobId: `due-soon-${task.id}` },
       );
     } catch {
       // в e2e без Valkey — игнорируем
@@ -151,7 +156,7 @@ export class TasksService {
 
     if (dueDate && updated.dueDate?.getTime() !== previous.dueDate?.getTime()) {
       try {
-        await this.remindersQueue?.remove(`due-soon:${id}`);
+        await this.remindersQueue?.remove(`due-soon-${id}`);
       } catch {
         // ignore - queue not available in test
       }

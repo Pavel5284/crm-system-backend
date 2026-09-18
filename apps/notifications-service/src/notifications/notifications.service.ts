@@ -7,6 +7,8 @@ import {
   NOTIFICATION_EVENTS,
   TaskAssignedEventPayload,
   TaskCompletedEventPayload,
+  DealStageChangedEventPayload,
+  DealDeadlineSoonEventPayload,
 } from "@app/shared";
 
 @Injectable()
@@ -62,6 +64,43 @@ export class NotificationsService {
       taskId: task.id,
       title: task.title,
     });
+  }
+
+  async handleDealStageChanged({
+    deal,
+    fromStage,
+    toStage,
+    comment,
+    actorId,
+  }: DealStageChangedEventPayload) {
+    if (!deal.responsibleUserId || deal.responsibleUserId === actorId) return;
+    await this.notify(
+      deal.responsibleUserId,
+      NotificationType.DEAL_STAGE_CHANGED,
+      {
+        dealId: deal.id,
+        name: deal.name,
+        company: deal.company,
+        fromStage,
+        toStage,
+        comment,
+      },
+    );
+  }
+
+  async handleDealDeadlineSoon({ deal }: DealDeadlineSoonEventPayload) {
+    if (!deal.responsibleUserId) return;
+    await this.notify(
+      deal.responsibleUserId,
+      NotificationType.DEAL_DEADLINE_SOON,
+      {
+        dealId: deal.id,
+        name: deal.name,
+        company: deal.company,
+        status: deal.status,
+        deadline: deal.deadline,
+      },
+    );
   }
 
   private async notify(
