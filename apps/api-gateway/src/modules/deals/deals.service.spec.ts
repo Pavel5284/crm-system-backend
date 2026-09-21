@@ -21,7 +21,7 @@ describe('DealsService', () => {
       jest.Mock
     >;
     customer: Record<'findUnique' | 'create', jest.Mock>;
-    user: Record<'findUnique', jest.Mock>;
+    user: Record<'findUnique' | 'findMany', jest.Mock>;
     stageTransitionRule: Record<'findUnique' | 'findMany', jest.Mock>;
     dealStageHistory: Record<'create', jest.Mock>;
     $transaction: jest.Mock;
@@ -43,6 +43,7 @@ describe('DealsService', () => {
     customerId: customer.id,
     customer,
     responsibleUserId: 'user-resp',
+    responsibleUserIds: ['user-resp'],
     contactName: 'Иван',
     contactPhone: '+7 900 000-00-00',
     deadline: null,
@@ -74,7 +75,7 @@ describe('DealsService', () => {
         delete: jest.fn(),
       },
       customer: { findUnique: jest.fn(), create: jest.fn() },
-      user: { findUnique: jest.fn() },
+      user: { findUnique: jest.fn(), findMany: jest.fn() },
       stageTransitionRule: { findUnique: jest.fn(), findMany: jest.fn() },
       dealStageHistory: { create: jest.fn() },
       $transaction: jest.fn((promises: Promise<unknown>[]) =>
@@ -292,6 +293,98 @@ describe('DealsService', () => {
         expect.objectContaining({ data: { mainComment: null } }),
       );
       expect(result.mainComment).toBeNull();
+    });
+  });
+
+  describe('updateResponsibles', () => {
+    const alice = { id: 'user-alice' };
+    const bob = { id: 'user-bob' };
+
+    it('бросает NotFoundException, если сделка не найдена', async () => {
+      prisma.deal.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateResponsibles('missing', { userIds: [alice.id] }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.deal.update).not.toHaveBeenCalled();
+    });
+
+    it('бросает NotFoundException на неизвестного пользователя', async () => {
+      prisma.deal.findUnique.mockResolvedValue(baseDeal);
+      prisma.user.findMany.mockResolvedValue([alice]);
+      await expect(
+        service.updateResponsibles('deal-1', { userIds: [alice.id, bob.id] }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.deal.update).not.toHaveBeenCalled();
+    });
+
+    it('ставит состав и первого главным, убирает дубликаты', async () => {
+      prisma.deal.findUnique.mockResolvedValue(baseDeal);
+      prisma.user.findMany.mockResolvedValue([alice, bob]);
+      prisma.deal.update.mockResolvedValue({
+        ...baseDeal,
+        responsibleUserIds: [bob.id, alice.id],
+        responsibleUserId: bob.id,
+      });
+
+      const result = await service.updateResponsibles('deal-1', {
+        userIds: [bob.id, alice.id, bob.id],
+      });
+
+      expect(prisma.deal.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'deal-1' },
+          data: {
+            responsibleUserIds: [bob.id, alice.id],
+            responsibleUserId: bob.id,
+          },
+        }),
+      );
+      expect(result.responsibleName).toBeNull();
+    });
+
+    it('пустой массив снимает всех ответственных', async () => {
+      prisma.deal.findUnique.mockResolvedValue(baseDeal);
+      prisma.deal.update.mockResolvedValue({
+        ...baseDeal,
+        responsibleUserIds: [],
+        responsibleUserId: null,
+      });
+
+      await service.updateResponsibles('deal-1', { userIds: [] });
+
+      expect(prisma.deal.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { responsibleUserIds: [], responsibleUserId: null },
+        }),
+      );
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update — синхронизация ответственных', () => {
+    it('смена главного через PATCH двигает его в начало списка', async () => {
+      prisma.deal.findUnique.mockResolvedValue({
+        ...baseDeal,
+        responsibleUserIds: ['user-resp', 'user-bob'],
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-bob' });
+      prisma.deal.update.mockResolvedValue({
+        ...baseDeal,
+        responsibleUserId: 'user-bob',
+        responsibleUserIds: ['user-bob', 'user-resp'],
+      });
+
+      await service.update('deal-1', { responsibleUserId: 'user-bob' });
+
+      expect(prisma.deal.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'deal-1' },
+          data: {
+            responsibleUserId: 'user-bob',
+            responsibleUserIds: ['user-bob', 'user-resp'],
+          },
+        }),
+      );
     });
   });
 

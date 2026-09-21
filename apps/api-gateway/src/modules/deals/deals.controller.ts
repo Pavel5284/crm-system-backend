@@ -19,6 +19,7 @@ import { CreateDealDto } from './dto/create-deal.dto';
 import { ImportDealDto } from './dto/import-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 import { UpdateMainCommentDto } from './dto/update-main-comment.dto';
+import { UpdateResponsiblesDto } from './dto/update-responsibles.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -76,6 +77,15 @@ export class DealsController {
     @Body() dto: UpdateMainCommentDto,
   ) {
     return this.dealsService.updateMainComment(id, dto);
+  }
+
+  @Patch(':id/responsibles')
+  @Roles(...shared.DEAL_PERMISSIONS.DEALS_UPDATE)
+  updateResponsibles(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateResponsiblesDto,
+  ) {
+    return this.dealsService.updateResponsibles(id, dto);
   }
 
   @Delete(':id')

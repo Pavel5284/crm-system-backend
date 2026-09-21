@@ -137,6 +137,9 @@ model Deal {
 
   responsibleUserId String?
   responsible       User?   @relation("ResponsibleDeals", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  // Все ответственные сделки (первый элемент = главный = responsibleUserId).
+  // DEFAULT [] — новые строки; старые бэкфилятся миграцией из responsibleUserId.
+  responsibleUserIds String[] @default([])
 
   contactName  String?
   contactPhone String?

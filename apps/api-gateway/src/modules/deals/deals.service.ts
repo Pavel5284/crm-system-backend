@@ -21,6 +21,7 @@ import { CreateDealDto } from './dto/create-deal.dto';
 import { ImportDealDto } from './dto/import-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 import { UpdateMainCommentDto } from './dto/update-main-comment.dto';
+import { UpdateResponsiblesDto } from './dto/update-responsibles.dto';
 
 export const DEFAULT_DEAL_STAGE = 'todo';
 
@@ -42,6 +43,7 @@ type DealWithCustomer = {
   status: string;
   customerId: string;
   responsibleUserId: string | null;
+  responsibleUserIds?: string[];
   contactName: string | null;
   contactPhone: string | null;
   deadline: Date | null;
@@ -182,9 +184,26 @@ export class DealsService {
     if (!deal) {
       throw new NotFoundException(`Сделка ${id} не найдена`);
     }
+    // Ответственные в порядке массива (первый = главный).
+    // Fallback на одиночный responsibleUserId — для строк до бэкфилла.
+    const responsibleIds = deal.responsibleUserIds?.length
+      ? deal.responsibleUserIds
+      : deal.responsibleUserId
+        ? [deal.responsibleUserId]
+        : [];
+    const responsibleUsers = responsibleIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: responsibleIds } },
+          select: { id: true, name: true, email: true },
+        })
+      : [];
+    const usersById = new Map(responsibleUsers.map((u) => [u.id, u]));
     return {
       ...this.toDto(deal),
       responsible: deal.responsible,
+      responsibles: responsibleIds
+        .map((userId) => usersById.get(userId))
+        .filter((u): u is { id: string; name: string; email: string } => !!u),
       items: deal.items.map((item) => ({
         ...item,
         quantity: Number(item.quantity),
@@ -206,6 +225,7 @@ export class DealsService {
     // responsibleUserId обязателен при создании (Этап 5): 404 на неизвестный id.
     await this.ensureUserExists(dto.responsibleUserId);
 
+
     // Единая точка входа: обычное создание — только stage по умолчанию.
     const deal = await this.prisma.deal.create({
       data: {
@@ -216,6 +236,7 @@ export class DealsService {
         status: DEFAULT_DEAL_STAGE,
         customerId: customer.id,
         responsibleUserId: dto.responsibleUserId,
+        responsibleUserIds: [dto.responsibleUserId],
         contactName: dto.contactName,
         contactPhone: dto.contactPhone,
         deadline: dto.deadline ? new Date(dto.deadline) : undefined,
@@ -250,6 +271,7 @@ export class DealsService {
         status: dto.status,
         customerId: customer.id,
         responsibleUserId: dto.responsibleUserId,
+        responsibleUserIds: [dto.responsibleUserId],
         contactName: dto.contactName,
         contactPhone: dto.contactPhone,
         deadline: dto.deadline ? new Date(dto.deadline) : undefined,
@@ -273,12 +295,24 @@ export class DealsService {
       await this.ensureUserExists(dto.responsibleUserId);
     }
     // Stage меняется только через changeStage (state machine).
+    // Инвариант: responsibleUserIds[0] = главный = responsibleUserId,
+    // поэтому смена главного через старый эндпоинт двигает его в начало списка.
     const deal = await this.prisma.deal.update({
       where: { id },
       data: {
         company: dto.company,
         description: dto.description,
         responsibleUserId: dto.responsibleUserId,
+        ...(dto.responsibleUserId !== undefined
+          ? {
+              responsibleUserIds: [
+                dto.responsibleUserId,
+                ...(existing.responsibleUserIds ?? []).filter(
+                  (userId) => userId !== dto.responsibleUserId,
+                ),
+              ],
+            }
+          : {}),
         contactName: dto.contactName,
         contactPhone: dto.contactPhone,
         deadline: dto.deadline ? new Date(dto.deadline) : undefined,
@@ -294,6 +328,33 @@ export class DealsService {
       await this.removeDeadlineReminder(id);
       await this.scheduleDeadlineReminder(deal);
     }
+    return this.toDto(deal);
+  }
+
+  // Полная замена состава ответственных. Первый id = главный
+  // (пишется и в responsibleUserId для совместимости уведомлений/фильтров).
+  // Пустой массив снимает всех. Доступ — как у PATCH /deals/:id.
+  async updateResponsibles(id: string, dto: UpdateResponsiblesDto) {
+    const existing = await this.prisma.deal.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Сделка ${id} не найдена`);
+    }
+    const ids = [...new Set((dto.userIds ?? []).filter(Boolean))];
+    if (ids.length > 0) {
+      const found = await this.prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
+      const missing = ids.find((userId) => !found.some((u) => u.id === userId));
+      if (missing) {
+        throw new NotFoundException(`Пользователь ${missing} не найден`);
+      }
+    }
+    const deal = await this.prisma.deal.update({
+      where: { id },
+      data: { responsibleUserIds: ids, responsibleUserId: ids[0] ?? null },
+      include: { customer: { select: { id: true, name: true, email: true } } },
+    });
     return this.toDto(deal);
   }
 

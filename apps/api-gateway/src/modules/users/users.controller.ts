@@ -160,16 +160,32 @@ export class UsersController {
   }
 
   @Get('search')
-  async search(@CurrentUser('id') userId: string, @Query('q') q: string) {
+  async search(
+    @CurrentUser('id') userId: string,
+    @Query('q') q: string,
+    @Query('page') pageRaw?: string,
+    @Query('limit') limitRaw?: string,
+    @Query('includeSelf') includeSelfRaw?: string,
+  ) {
     const query = (q || '').trim();
-    if (!query) return [];
-    const users = await this.prisma.user.findMany({
+    const page = Math.max(1, parseInt(pageRaw || '1', 10) || 1);
+    const rawLimit = parseInt(limitRaw || '20', 10) || 20;
+    const limit = Math.min(Math.max(rawLimit, 1), 50);
+    const skip = (page - 1) * limit;
+    // includeSelf — для выбора ответственных (себя тоже можно назначить);
+    // чаты по умолчанию себя исключают, как раньше.
+    const includeSelf = includeSelfRaw === 'true' || includeSelfRaw === '1';
+    return this.prisma.user.findMany({
       where: {
-        id: { not: userId },
-        OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { email: { contains: query, mode: 'insensitive' } },
-        ],
+        ...(includeSelf ? {} : { id: { not: userId } }),
+        ...(query
+          ? {
+              OR: [
+                { name: { contains: query, mode: 'insensitive' } },
+                { email: { contains: query, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,
@@ -178,10 +194,10 @@ export class UsersController {
         avatarUrl: true,
         position: true,
       },
-      take: 20,
+      skip,
+      take: limit,
       orderBy: { name: 'asc' },
     });
-    return users;
   }
 
   @Roles(Role.ADMIN)
