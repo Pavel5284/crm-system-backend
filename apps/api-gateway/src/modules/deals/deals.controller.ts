@@ -11,12 +11,14 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
 import * as shared from '@app/shared';
 import { DealsService } from './deals.service';
 import { ChangeDealStageDto } from './dto/change-deal-stage.dto';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { ImportDealDto } from './dto/import-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
+import { UpdateMainCommentDto } from './dto/update-main-comment.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -65,6 +67,15 @@ export class DealsController {
   @Roles(...shared.DEAL_PERMISSIONS.DEALS_UPDATE)
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDealDto) {
     return this.dealsService.update(id, dto);
+  }
+
+  @Patch(':id/main-comment')
+  @Roles(Role.ADMIN, Role.MANAGER)
+  updateMainComment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateMainCommentDto,
+  ) {
+    return this.dealsService.updateMainComment(id, dto);
   }
 
   @Delete(':id')

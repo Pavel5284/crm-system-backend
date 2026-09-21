@@ -127,6 +127,9 @@ model Deal {
   // Обязательное: непустое значение проверяется на уровне DTO.
   // DEFAULT '' — чтобы миграция не затирала существующие строки.
   description String       @default("")
+  // Главный комментарий к сделке: меняет только ADMIN/MANAGER
+  // через PATCH /deals/:id/main-comment. NULL — не задан.
+  mainComment String?
   price       Decimal      @db.Decimal(12, 2)
   status      String       @default("todo")
   customerId  String

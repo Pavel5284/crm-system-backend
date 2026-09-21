@@ -20,6 +20,7 @@ import { ChangeDealStageDto } from './dto/change-deal-stage.dto';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { ImportDealDto } from './dto/import-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
+import { UpdateMainCommentDto } from './dto/update-main-comment.dto';
 
 export const DEFAULT_DEAL_STAGE = 'todo';
 
@@ -34,6 +35,9 @@ type DealWithCustomer = {
   name: string;
   company: string;
   description: string;
+  // Опциональное — чтобы добавление полей в схему не роняло сборку,
+  // если клиент/mocks ещё без нового поля; в DTO всегда нормализуем в null.
+  mainComment?: string | null;
   price: unknown;
   status: string;
   customerId: string;
@@ -107,6 +111,7 @@ export class DealsService {
       name: deal.name,
       company: deal.company,
       description: deal.description,
+      mainComment: deal.mainComment ?? null,
       price: Number(deal.price),
       status: deal.status,
       customerId: deal.customerId,
@@ -292,6 +297,22 @@ export class DealsService {
     return this.toDto(deal);
   }
 
+  // Главный комментарий сделки. Доступ — только ADMIN/MANAGER
+  // (проверяется `@Roles` на контроллере). Пустая строка очищает комментарий.
+  async updateMainComment(id: string, dto: UpdateMainCommentDto) {
+    const existing = await this.prisma.deal.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Сделка ${id} не найдена`);
+    }
+    const mainComment = dto.comment.trim() ? dto.comment.trim() : null;
+    const deal = await this.prisma.deal.update({
+      where: { id },
+      data: { mainComment },
+      include: { customer: { select: { id: true, name: true, email: true } } },
+    });
+    return this.toDto(deal);
+  }
+
   async changeStage(id: string, dto: ChangeDealStageDto, actor: AuthUser) {
     const existing = await this.prisma.deal.findUnique({
       where: { id },
@@ -348,7 +369,7 @@ export class DealsService {
           fromStage,
           toStage,
           changedByUserId: actor.id,
-          comment: dto.comment,
+          comment: dto.comment ?? null,
         },
       }),
     ]);
@@ -367,7 +388,7 @@ export class DealsService {
         },
         fromStage,
         toStage,
-        comment: dto.comment,
+        comment: dto.comment ?? null,
         actorId: actor.id,
       };
       this.notificationsClient.emit(DEAL_EVENTS.STAGE_CHANGED, payload);

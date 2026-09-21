@@ -12,7 +12,7 @@ export interface DealStageChangedEventPayload {
   deal: DealRef;
   fromStage: string;
   toStage: string;
-  comment: string;
+  comment: string | null;
   actorId: string;
 }
 

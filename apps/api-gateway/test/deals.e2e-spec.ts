@@ -188,11 +188,15 @@ describe('Deals API (e2e)', () => {
       .send({ company: 'ООО Легаси', description: 'Доведено до требований' })
       .expect(200);
 
-    // Переход без обязательного комментария — точный 400, а не 500.
-    await request(httpServer)
+    // Переход без комментария разрешён: комментарий перехода необязателен
+    // (главный комментарий сделки — отдельное поле mainComment).
+    const moved = await request(httpServer)
       .patch(`/api/deals/${legacyId}/stage`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ targetStage: 'to-be-agreed' })
-      .expect(400);
+      .expect(200);
+    expect((moved.body as { data: { status: string } }).data.status).toBe(
+      'to-be-agreed',
+    );
   });
 });

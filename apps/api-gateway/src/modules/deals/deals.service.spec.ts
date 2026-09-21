@@ -37,6 +37,7 @@ describe('DealsService', () => {
     name: 'Сделка',
     company: 'ООО Тест',
     description: 'Достаточно длинное описание',
+    mainComment: null,
     price: 1000,
     status: 'todo',
     customerId: customer.id,
@@ -222,6 +223,75 @@ describe('DealsService', () => {
         actor,
       );
       expect(notificationsClient.emit).not.toHaveBeenCalled();
+    });
+
+    it('переход без комментария: пишет историю с comment null', async () => {
+      prisma.deal.findUnique.mockResolvedValue(baseDeal);
+      prisma.stageTransitionRule.findUnique.mockResolvedValue(rule);
+      prisma.user.findUnique.mockResolvedValue({ id: actor.id });
+      prisma.deal.update.mockResolvedValue({
+        ...baseDeal,
+        status: 'to-be-agreed',
+      });
+      prisma.dealStageHistory.create.mockResolvedValue({ id: 'h-1' });
+
+      const result = await service.changeStage(
+        'deal-1',
+        { targetStage: 'to-be-agreed' },
+        actor,
+      );
+
+      expect(result.status).toBe('to-be-agreed');
+      expect(createArgOf(prisma.dealStageHistory.create).data).toMatchObject({
+        comment: null,
+      });
+    });
+  });
+
+  describe('updateMainComment', () => {
+    it('бросает NotFoundException, если сделка не найдена', async () => {
+      prisma.deal.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateMainComment('missing', { comment: 'x' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.deal.update).not.toHaveBeenCalled();
+    });
+
+    it('сохраняет комментарий и возвращает DTO', async () => {
+      prisma.deal.findUnique.mockResolvedValue(baseDeal);
+      prisma.deal.update.mockResolvedValue({
+        ...baseDeal,
+        mainComment: 'Главный комментарий',
+      });
+
+      const result = await service.updateMainComment('deal-1', {
+        comment: 'Главный комментарий',
+      });
+
+      expect(prisma.deal.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'deal-1' },
+          data: { mainComment: 'Главный комментарий' },
+        }),
+      );
+      expect(result.mainComment).toBe('Главный комментарий');
+    });
+
+    it('пустая строка очищает комментарий в NULL', async () => {
+      prisma.deal.findUnique.mockResolvedValue({
+        ...baseDeal,
+        mainComment: 'Старый',
+      });
+      prisma.deal.update.mockResolvedValue({ ...baseDeal, mainComment: null });
+
+      const result = await service.updateMainComment('deal-1', {
+        comment: '   ',
+      });
+
+      expect(prisma.deal.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { mainComment: null } }),
+      );
+      expect(result.mainComment).toBeNull();
     });
   });
 
