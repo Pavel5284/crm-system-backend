@@ -170,52 +170,6 @@ describe('AuthService', () => {
     expect(updateArg.data.lockedUntil).toBeInstanceOf(Date);
   });
 
-  it('логин без CAPTCHA отклоняется до обращения к БД', async () => {
-    prisma.user.findUnique.mockResolvedValue({
-      id: '1',
-      email: 'a@a.com',
-      passwordHash: 'hash',
-      isEmailVerified: true,
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-    });
-    captchaService.verify.mockResolvedValue(false);
-    (argon2.verify as jest.Mock).mockClear();
-
-    await expect(
-      service.login({ email: 'a@a.com', password: 'wrong' }),
-    ).rejects.toThrow(BadRequestException);
-    expect(captchaService.verify).toHaveBeenCalledWith(undefined, undefined);
-    expect(prisma.user.findUnique).not.toHaveBeenCalled();
-    expect(argon2.verify).not.toHaveBeenCalled();
-  });
-
-  it('логин с валидной CAPTCHA идет дальше', async () => {
-    prisma.user.findUnique.mockResolvedValue({
-      id: '1',
-      email: 'a@a.com',
-      role: 'USER',
-      passwordHash: 'hash',
-      isEmailVerified: true,
-      failedLoginAttempts: 2,
-      lockedUntil: null,
-    });
-    captchaService.verify.mockResolvedValue(true);
-    (argon2.verify as jest.Mock).mockResolvedValue(true);
-    (argon2.hash as jest.Mock).mockResolvedValue('hashed-refresh');
-    prisma.user.update.mockResolvedValue({});
-
-    const result = await service.login(
-      { email: 'a@a.com', password: 'correct', captchaToken: 'tok' },
-      { ip: '1.2.3.4' },
-    );
-    expect(captchaService.verify).toHaveBeenCalledWith('tok', '1.2.3.4');
-    expect(result).toEqual({
-      accessToken: 'signed-token',
-      refreshToken: 'signed-token',
-    });
-  });
-
   it('успешный вход сбрасывает счетчик неудач', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: '1',

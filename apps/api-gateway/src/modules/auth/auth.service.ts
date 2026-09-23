@@ -200,18 +200,6 @@ export class AuthService {
     const invalidCredentials = () =>
       new UnauthorizedException('Неверный email или пароль');
 
-    // CAPTCHA обязательна на каждую попытку (фронт не дает нажать login
-    // без токена). Проверка первой — боты без токена не доходят до БД/argon2.
-    const captchaOk = await this.captchaService.verify(
-      dto.captchaToken,
-      meta?.ip,
-    );
-    if (!captchaOk) {
-      throw new BadRequestException(
-        'Не пройдена проверка CAPTCHA. Попробуйте снова',
-      );
-    }
-
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
