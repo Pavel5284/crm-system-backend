@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -217,17 +219,22 @@ export class AuthService {
     }
 
     // Аккаунт заблокирован после серии неудач — пароль все равно проверяем,
-    // чтобы время ответа не выдавало факт блокировки. Ответ одинаковый.
+    // чтобы время ответа не выдавало факт блокировки. Ответ честный (429):
+    // существование email и так раскрыто через 409 на регистрации.
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
       try {
         await argon2.verify(user.passwordHash, dto.password);
       } catch {
         // игнорируем — ответ всегда одинаковый
       }
+      const retryIn = this.formatMinutesLeft(user.lockedUntil);
       this.logger.warn(
         `Login blocked (account locked) userId=${user.id} ip=${meta?.ip ?? 'unknown'}`,
       );
-      throw invalidCredentials();
+      throw new HttpException(
+        `Слишком много неудачных попыток. Повторите через ${retryIn}`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     // Серия неудач — требуем CAPTCHA до проверки пароля, чтобы не жечь
@@ -321,11 +328,27 @@ export class AuthService {
     return tokens;
   }
 
+  /** Оставшиеся минуты блокировки текстом: 1 минуту, 3 минуты, 15 минут. */
+  private formatMinutesLeft(lockedUntil: Date): string {
+    const minutes = Math.max(
+      1,
+      Math.ceil((lockedUntil.getTime() - Date.now()) / 60_000),
+    );
+    const mod10 = minutes % 10;
+    const mod100 = minutes % 100;
+    const word =
+      mod10 === 1 && mod100 !== 11
+        ? 'минуту'
+        : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+          ? 'минуты'
+          : 'минут';
+    return `${minutes} ${word}`;
+  }
+
   /**
    * Учитывает неудачную попытку входа. По достижении лимита ставит
-   * временную блокировку аккаунта. Ответ клиенту всегда одинаковый (401),
-   * факт блокировки виден только в логах — не выдаем переборщику,
-   * угадал ли он существование email.
+   * временную блокировку аккаунта. Ответ на неудачу всегда одинаковый (401),
+   * а вход при активном блоке отвечает честным 429 с оставшимся временем.
    */
   private async registerFailedAttempt(
     userId: string,

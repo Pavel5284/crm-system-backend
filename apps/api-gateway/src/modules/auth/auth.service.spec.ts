@@ -2,6 +2,8 @@ import { Test } from '@nestjs/testing';
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -121,7 +123,7 @@ describe('AuthService', () => {
     expect(argon2.verify).toHaveBeenCalled();
   });
 
-  it('заблокированный аккаунт не входит даже с верным паролем', async () => {
+  it('заблокированный аккаунт отвечает 429 с оставшимся временем', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: '1',
       email: 'a@a.com',
@@ -133,9 +135,12 @@ describe('AuthService', () => {
     });
     (argon2.verify as jest.Mock).mockResolvedValue(true);
 
-    await expect(
-      service.login({ email: 'a@a.com', password: 'correct' }),
-    ).rejects.toThrow(UnauthorizedException);
+    const err = (await service
+      .login({ email: 'a@a.com', password: 'correct' })
+      .catch((e: unknown) => e)) as HttpException;
+    expect(err).toBeInstanceOf(HttpException);
+    expect(err.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+    expect(err.message).toContain('Слишком много неудачных попыток');
     expect(jwtService.signAsync).not.toHaveBeenCalled();
   });
 
