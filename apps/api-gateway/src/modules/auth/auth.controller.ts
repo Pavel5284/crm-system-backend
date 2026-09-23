@@ -61,14 +61,26 @@ export class AuthController {
     res.clearCookie('refreshToken', this.getCookieOpts(false));
   }
 
+  private getClientIp(req: Request): string {
+    return (
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.ip ||
+      req.socket.remoteAddress ||
+      'unknown'
+    );
+  }
+
   @Throttle({ default: { limit: 10, ttl: 3_600_000, blockDuration: 600_000 } })
   @Public()
   @Post('register')
   async register(
     @Body() dto: RegisterDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.register(dto);
+    const result = await this.authService.register(dto, {
+      ip: this.getClientIp(req),
+    });
     if ('refreshToken' in result) {
       const r = result;
       this.setAuthCookies(res, r.accessToken, r.refreshToken);
@@ -101,11 +113,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const ip =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.ip ||
-      req.socket.remoteAddress ||
-      'unknown';
+    const ip = this.getClientIp(req);
     const userAgent = (req.headers['user-agent'] as string) || '';
     const tokens = await this.authService.login(dto, { ip, userAgent });
     this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken);

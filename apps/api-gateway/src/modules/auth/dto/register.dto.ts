@@ -1,6 +1,19 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
+
+// Email храним в нижнем регистре без пробелов: Test@x.com и test@x.com —
+// один аккаунт. Работает при transform: true в global ValidationPipe.
+const NormalizeEmail = () =>
+  Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  );
 
 const Trim = () =>
   Transform(({ value }: { value: unknown }) =>
@@ -9,7 +22,7 @@ const Trim = () =>
 
 export class RegisterDto {
   @ApiProperty({ example: 'alice@example.com' })
-  @Trim()
+  @NormalizeEmail()
   @IsEmail()
   @MaxLength(254)
   email: string;
@@ -26,4 +39,12 @@ export class RegisterDto {
   @MinLength(1)
   @MaxLength(100)
   name: string;
+
+  @ApiPropertyOptional({
+    description: 'Токен Cloudflare Turnstile. Обязателен в проде.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
 }

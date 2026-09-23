@@ -13,6 +13,7 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '@app/database';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { CaptchaService } from './captcha.service';
 import { EmailService } from './email.service';
 
 // Заранее посчитанный argon2id-хэш несуществующего пароля.
@@ -30,6 +31,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
+    private readonly captchaService: CaptchaService,
   ) {}
 
   /** Лимиты блокировки аккаунта, переопределяются через env. */
@@ -64,7 +66,18 @@ export class AuthService {
     return Date.now() - lastSent >= 5 * 60 * 1000;
   }
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, meta?: { ip?: string }) {
+    // CAPTCHA первой — боты без валидного токена не доходят до БД.
+    const captchaOk = await this.captchaService.verify(
+      dto.captchaToken,
+      meta?.ip,
+    );
+    if (!captchaOk) {
+      throw new BadRequestException(
+        'Не пройдена проверка CAPTCHA. Попробуйте снова',
+      );
+    }
+
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -152,7 +165,13 @@ export class AuthService {
   }
 
   async resendVerification(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    // Сырой @Body('email') без DTO: нормализуем вручную.
+    const normalized =
+      typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!normalized) throw new BadRequestException('Email не указан');
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalized },
+    });
     if (!user) throw new BadRequestException('Пользователь не найден');
     if (user.isEmailVerified)
       throw new BadRequestException('Email уже подтверждён');

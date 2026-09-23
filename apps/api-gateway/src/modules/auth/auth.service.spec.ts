@@ -1,9 +1,14 @@
 import { Test } from '@nestjs/testing';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { AuthService } from './auth.service';
+import { CaptchaService } from './captcha.service';
 import { EmailService } from './email.service';
 import { PrismaService } from '@app/database';
 
@@ -15,6 +20,7 @@ describe('AuthService', () => {
   let jwtService: { signAsync: jest.Mock };
   let configService: { get: jest.Mock; getOrThrow: jest.Mock };
   let emailService: { sendVerificationEmail: jest.Mock };
+  let captchaService: { verify: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -28,6 +34,7 @@ describe('AuthService', () => {
     emailService = {
       sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
     };
+    captchaService = { verify: jest.fn().mockResolvedValue(true) };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -36,6 +43,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
         { provide: EmailService, useValue: emailService },
+        { provide: CaptchaService, useValue: captchaService },
       ],
     }).compile();
 
@@ -52,6 +60,24 @@ describe('AuthService', () => {
         name: 'A',
       }),
     ).rejects.toThrow(ConflictException);
+  });
+
+  it('регистрация без валидной CAPTCHA не доходит до БД', async () => {
+    captchaService.verify.mockResolvedValue(false);
+
+    await expect(
+      service.register(
+        {
+          email: 'a@a.com',
+          password: 'password123',
+          name: 'A',
+          captchaToken: 'bad-token',
+        },
+        { ip: '1.2.3.4' },
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(captchaService.verify).toHaveBeenCalledWith('bad-token', '1.2.3.4');
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
   it('бросает UnauthorizedException при неверном пароле', async () => {
