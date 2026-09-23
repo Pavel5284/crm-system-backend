@@ -170,13 +170,13 @@ describe('AuthService', () => {
     expect(updateArg.data.lockedUntil).toBeInstanceOf(Date);
   });
 
-  it('логин после 2 неудач без CAPTCHA отклоняется до проверки пароля', async () => {
+  it('логин без CAPTCHA отклоняется до обращения к БД', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: '1',
       email: 'a@a.com',
       passwordHash: 'hash',
       isEmailVerified: true,
-      failedLoginAttempts: 2,
+      failedLoginAttempts: 0,
       lockedUntil: null,
     });
     captchaService.verify.mockResolvedValue(false);
@@ -186,10 +186,11 @@ describe('AuthService', () => {
       service.login({ email: 'a@a.com', password: 'wrong' }),
     ).rejects.toThrow(BadRequestException);
     expect(captchaService.verify).toHaveBeenCalledWith(undefined, undefined);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
     expect(argon2.verify).not.toHaveBeenCalled();
   });
 
-  it('логин после 2 неудач с валидной CAPTCHA идет дальше', async () => {
+  it('логин с валидной CAPTCHA идет дальше', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: '1',
       email: 'a@a.com',

@@ -37,21 +37,12 @@ export class AuthService {
   ) {}
 
   /** Лимиты блокировки аккаунта, переопределяются через env. */
-  private getLoginPolicy(): {
-    maxAttempts: number;
-    lockMinutes: number;
-    captchaAfterAttempts: number;
-  } {
+  private getLoginPolicy(): { maxAttempts: number; lockMinutes: number } {
     const maxAttempts =
       Number(this.configService.get<number>('LOGIN_MAX_ATTEMPTS')) || 5;
     const lockMinutes =
       Number(this.configService.get<number>('LOGIN_LOCK_MINUTES')) || 15;
-    const captchaRaw = Number(
-      this.configService.get<number>('LOGIN_CAPTCHA_AFTER_ATTEMPTS'),
-    );
-    // 0 — осознанное отключение CAPTCHA на логине (остается блокировка).
-    const captchaAfterAttempts = Number.isNaN(captchaRaw) ? 2 : captchaRaw;
-    return { maxAttempts, lockMinutes, captchaAfterAttempts };
+    return { maxAttempts, lockMinutes };
   }
 
   /** Сжигает ~столько же времени, сколько настоящий verify. */
@@ -209,6 +200,18 @@ export class AuthService {
     const invalidCredentials = () =>
       new UnauthorizedException('Неверный email или пароль');
 
+    // CAPTCHA обязательна на каждую попытку (фронт не дает нажать login
+    // без токена). Проверка первой — боты без токена не доходят до БД/argon2.
+    const captchaOk = await this.captchaService.verify(
+      dto.captchaToken,
+      meta?.ip,
+    );
+    if (!captchaOk) {
+      throw new BadRequestException(
+        'Не пройдена проверка CAPTCHA. Попробуйте снова',
+      );
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -235,25 +238,6 @@ export class AuthService {
         `Слишком много неудачных попыток. Повторите через ${retryIn}`,
         HttpStatus.TOO_MANY_REQUESTS,
       );
-    }
-
-    // Серия неудач — требуем CAPTCHA до проверки пароля, чтобы не жечь
-    // argon2 и не давать перебирать дальше. Ответ отличим (400), иначе фронт
-    // не узнает, когда показать виджет.
-    const { captchaAfterAttempts } = this.getLoginPolicy();
-    if (
-      captchaAfterAttempts > 0 &&
-      (user.failedLoginAttempts ?? 0) >= captchaAfterAttempts
-    ) {
-      const captchaOk = await this.captchaService.verify(
-        dto.captchaToken,
-        meta?.ip,
-      );
-      if (!captchaOk) {
-        throw new BadRequestException(
-          'Не пройдена проверка CAPTCHA. Попробуйте снова',
-        );
-      }
     }
 
     const valid = await argon2
