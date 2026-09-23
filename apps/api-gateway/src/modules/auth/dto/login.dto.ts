@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 const NormalizeEmail = () =>
@@ -20,4 +20,12 @@ export class LoginDto {
   // иначе гигантский пароль уходит в argon2 и кладет CPU.
   @MaxLength(128)
   password: string;
+
+  @ApiPropertyOptional({
+    description: 'Токен Cloudflare Turnstile. Требуется после серии неудач.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
 }

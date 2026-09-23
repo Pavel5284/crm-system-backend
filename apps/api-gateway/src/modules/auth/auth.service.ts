@@ -35,12 +35,21 @@ export class AuthService {
   ) {}
 
   /** Лимиты блокировки аккаунта, переопределяются через env. */
-  private getLoginPolicy(): { maxAttempts: number; lockMinutes: number } {
+  private getLoginPolicy(): {
+    maxAttempts: number;
+    lockMinutes: number;
+    captchaAfterAttempts: number;
+  } {
     const maxAttempts =
       Number(this.configService.get<number>('LOGIN_MAX_ATTEMPTS')) || 5;
     const lockMinutes =
       Number(this.configService.get<number>('LOGIN_LOCK_MINUTES')) || 15;
-    return { maxAttempts, lockMinutes };
+    const captchaRaw = Number(
+      this.configService.get<number>('LOGIN_CAPTCHA_AFTER_ATTEMPTS'),
+    );
+    // 0 — осознанное отключение CAPTCHA на логине (остается блокировка).
+    const captchaAfterAttempts = Number.isNaN(captchaRaw) ? 2 : captchaRaw;
+    return { maxAttempts, lockMinutes, captchaAfterAttempts };
   }
 
   /** Сжигает ~столько же времени, сколько настоящий verify. */
@@ -219,6 +228,25 @@ export class AuthService {
         `Login blocked (account locked) userId=${user.id} ip=${meta?.ip ?? 'unknown'}`,
       );
       throw invalidCredentials();
+    }
+
+    // Серия неудач — требуем CAPTCHA до проверки пароля, чтобы не жечь
+    // argon2 и не давать перебирать дальше. Ответ отличим (400), иначе фронт
+    // не узнает, когда показать виджет.
+    const { captchaAfterAttempts } = this.getLoginPolicy();
+    if (
+      captchaAfterAttempts > 0 &&
+      (user.failedLoginAttempts ?? 0) >= captchaAfterAttempts
+    ) {
+      const captchaOk = await this.captchaService.verify(
+        dto.captchaToken,
+        meta?.ip,
+      );
+      if (!captchaOk) {
+        throw new BadRequestException(
+          'Не пройдена проверка CAPTCHA. Попробуйте снова',
+        );
+      }
     }
 
     const valid = await argon2
