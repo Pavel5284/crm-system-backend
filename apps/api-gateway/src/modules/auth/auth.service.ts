@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -14,14 +15,40 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { EmailService } from './email.service';
 
+// Заранее посчитанный argon2id-хэш несуществующего пароля.
+// Нужен чтобы время ответа для "нет такого email" совпадало с реальным
+// verify и нельзя было перебирать базу email по таймингу.
+const DUMMY_PASSWORD_HASH =
+  '$argon2id$v=19$m=65536,p=4,t=3$rtkqtuJ8Mal+HNFGBvjO9Q$M25jjvRikYuXRGWD8LshyX/umiEnoma6vN8oNOj/DWI';
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
   ) {}
+
+  /** Лимиты блокировки аккаунта, переопределяются через env. */
+  private getLoginPolicy(): { maxAttempts: number; lockMinutes: number } {
+    const maxAttempts =
+      Number(this.configService.get<number>('LOGIN_MAX_ATTEMPTS')) || 5;
+    const lockMinutes =
+      Number(this.configService.get<number>('LOGIN_LOCK_MINUTES')) || 15;
+    return { maxAttempts, lockMinutes };
+  }
+
+  /** Сжигает ~столько же времени, сколько настоящий verify. */
+  private async burnTiming(password: string): Promise<void> {
+    try {
+      await argon2.verify(DUMMY_PASSWORD_HASH, password);
+    } catch {
+      // verify для dummy всегда false/throw — результат не важен
+    }
+  }
 
   private canResendVerification(user: {
     emailVerificationTokenExpires: Date | null;
@@ -149,13 +176,55 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
+    const invalidCredentials = () =>
+      new UnauthorizedException('Неверный email или пароль');
+
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-    if (!user) throw new UnauthorizedException('Неверный email или пароль');
+    // Нет юзера — жжем время как на настоящий verify, отвечаем как обычно.
+    if (!user) {
+      await this.burnTiming(dto.password);
+      throw invalidCredentials();
+    }
 
-    const valid = await argon2.verify(user.passwordHash, dto.password);
-    if (!valid) throw new UnauthorizedException('Неверный email или пароль');
+    // Аккаунт заблокирован после серии неудач — пароль все равно проверяем,
+    // чтобы время ответа не выдавало факт блокировки. Ответ одинаковый.
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      try {
+        await argon2.verify(user.passwordHash, dto.password);
+      } catch {
+        // игнорируем — ответ всегда одинаковый
+      }
+      this.logger.warn(
+        `Login blocked (account locked) userId=${user.id} ip=${meta?.ip ?? 'unknown'}`,
+      );
+      throw invalidCredentials();
+    }
+
+    const valid = await argon2
+      .verify(user.passwordHash, dto.password)
+      .catch(() => false);
+    if (!valid) {
+      await this.registerFailedAttempt(
+        user.id,
+        user.failedLoginAttempts ?? 0,
+        meta?.ip,
+      );
+      throw invalidCredentials();
+    }
+
+    // Пароль верный — сбрасываем счетчик неудач (ошибку сброса не пробрасываем).
+    if ((user.failedLoginAttempts ?? 0) > 0 || user.lockedUntil) {
+      try {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { failedLoginAttempts: 0, lockedUntil: null },
+        });
+      } catch {
+        // не блокируем вход из-за ошибки сброса
+      }
+    }
 
     const skipLoginVerification =
       process.env.SKIP_EMAIL_VERIFICATION === 'true' ||
@@ -203,6 +272,42 @@ export class AuthService {
     }
 
     return tokens;
+  }
+
+  /**
+   * Учитывает неудачную попытку входа. По достижении лимита ставит
+   * временную блокировку аккаунта. Ответ клиенту всегда одинаковый (401),
+   * факт блокировки виден только в логах — не выдаем переборщику,
+   * угадал ли он существование email.
+   */
+  private async registerFailedAttempt(
+    userId: string,
+    prevAttempts: number,
+    ip?: string,
+  ): Promise<void> {
+    const { maxAttempts, lockMinutes } = this.getLoginPolicy();
+    const failedAttempts = prevAttempts + 1;
+    try {
+      if (failedAttempts >= maxAttempts) {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            failedLoginAttempts: failedAttempts,
+            lockedUntil: new Date(Date.now() + lockMinutes * 60_000),
+          },
+        });
+        this.logger.warn(
+          `Account locked userId=${userId} ip=${ip ?? 'unknown'} attempts=${failedAttempts}`,
+        );
+      } else {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { failedLoginAttempts: failedAttempts },
+        });
+      }
+    } catch {
+      // не блокируем ответ из-за ошибки учета
+    }
   }
 
   private parseUserAgent(ua: string): {

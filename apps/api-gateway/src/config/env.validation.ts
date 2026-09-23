@@ -15,6 +15,8 @@ const envSchema = baseEnvSchema.extend({
     .optional()
     .or(z.literal('').transform(() => undefined)),
   SKIP_EMAIL_VERIFICATION: z.string().optional(),
+  LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(5),
+  LOGIN_LOCK_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),

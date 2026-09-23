@@ -29,6 +29,12 @@ async function bootstrap() {
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ limit: '10mb', extended: true }));
   app.use(helmet());
+  // За Render/nginx IP клиента приходит в X-Forwarded-For.
+  // Без trust proxy req.ip = IP балансера и IP-throttle бесполезен.
+  const httpServer = app.getHttpAdapter().getInstance() as unknown as {
+    set(key: string, value: unknown): void;
+  };
+  httpServer.set('trust proxy', 1);
   app.enableCors({
     origin: parseCorsOrigins(process.env.CORS_ORIGIN),
     credentials: true,

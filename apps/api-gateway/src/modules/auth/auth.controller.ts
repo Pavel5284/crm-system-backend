@@ -61,6 +61,7 @@ export class AuthController {
     res.clearCookie('refreshToken', this.getCookieOpts(false));
   }
 
+  @Throttle({ default: { limit: 10, ttl: 3_600_000, blockDuration: 600_000 } })
   @Public()
   @Post('register')
   async register(
@@ -76,12 +77,14 @@ export class AuthController {
     return result;
   }
 
+  @Throttle({ default: { limit: 20, ttl: 600_000, blockDuration: 600_000 } })
   @Public()
   @Get('verify-email')
   verifyEmail(@Query('token') token: string) {
     return this.authService.verifyEmail(token);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 600_000, blockDuration: 600_000 } })
   @Public()
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
@@ -89,7 +92,7 @@ export class AuthController {
     return this.authService.resendVerification(email);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000, blockDuration: 60_000 } })
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('login')
@@ -109,6 +112,7 @@ export class AuthController {
     return { accessToken: tokens.accessToken };
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60_000, blockDuration: 60_000 } })
   @Public()
   @UseGuards(AuthGuard('jwt-refresh'))
   @HttpCode(HttpStatus.OK)

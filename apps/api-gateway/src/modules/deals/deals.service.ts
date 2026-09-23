@@ -225,7 +225,6 @@ export class DealsService {
     // responsibleUserId обязателен при создании (Этап 5): 404 на неизвестный id.
     await this.ensureUserExists(dto.responsibleUserId);
 
-
     // Единая точка входа: обычное создание — только stage по умолчанию.
     const deal = await this.prisma.deal.create({
       data: {

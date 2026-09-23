@@ -18,6 +18,8 @@ import { LoggerModule } from 'nestjs-pino';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
+import { ThrottleStorageModule } from './common/throttle/throttle-storage.module';
+import { RedisThrottlerStorage } from './common/throttle/redis-throttler.storage';
 
 @Module({
   imports: [
@@ -42,7 +44,20 @@ import { ConfigService } from '@nestjs/config';
         redact: ['req.headers.authorization'], // не логируем сами токены
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]), // по умолчанию 100 запросов в минуту на IP
+    ThrottlerModule.forRootAsync({
+      imports: [ThrottleStorageModule],
+      inject: [RedisThrottlerStorage],
+      useFactory: (storage: RedisThrottlerStorage) => ({
+        // IP-уровень: 100 запросов в минуту. При наличии VALKEY_URL счетчики
+        // лежат в Redis (общие для всех инстансов), иначе — in-memory.
+        throttlers: [
+          { name: 'default', ttl: 60_000, limit: 100, blockDuration: 60_000 },
+        ],
+        storage: storage.isEnabled ? storage : undefined,
+        errorMessage:
+          'Слишком много запросов. Подождите минуту и попробуйте снова.',
+      }),
+    }),
     // Без VALKEY_URL BullMQ отключается (как в tasks-service): напоминания
     // о дедлайнах сделок работать не будут, но сервис стартует.
     ...(process.env.NODE_ENV === 'test' || !process.env.VALKEY_URL
