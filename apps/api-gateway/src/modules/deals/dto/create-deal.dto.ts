@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { DealPriority } from '@prisma/client';
@@ -27,18 +28,42 @@ export const TrimString = () =>
     typeof value === 'string' ? value.trim() : value,
   );
 
+// Данные нового клиента прямо в форме сделки («Создать нового клиента»).
+// Используется только когда не передан customerId.
+export class NewCustomerDto {
+  @ApiProperty({ example: 'ООО Ромашка' })
+  @IsString()
+  @MaxLength(200)
+  name: string;
+
+  @ApiProperty({ example: 'client@example.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiPropertyOptional({ example: '+7 900 000-00-00' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'Иван Петров' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  contactPerson?: string;
+
+  @ApiPropertyOptional({ example: 'site' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  fromSource?: string;
+}
+
 export class CreateDealDto {
   @ApiProperty({ example: 'Поставка оборудования' })
   @IsString()
   @MaxLength(200)
   name: string;
-
-  @ApiProperty({ example: 'ООО Ромашка' })
-  @TrimString()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(200)
-  company: string;
 
   @ApiProperty({ example: 'Поставка 10 насосов, монтаж и пусконаладка' })
   @TrimString()
@@ -53,14 +78,23 @@ export class CreateDealDto {
   @Min(0)
   price: number;
 
-  @ApiProperty({ example: 'client@example.com' })
-  @IsEmail()
-  customerEmail: string;
+  // Клиент сделки: ровно один из двух вариантов (проверяет сервис).
+  @ApiPropertyOptional({
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    description: 'Существующий клиент (выбор из списка)',
+  })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
 
-  @ApiProperty({ example: 'ООО Ромашка' })
-  @IsString()
-  @MaxLength(200)
-  customerName: string;
+  @ApiPropertyOptional({
+    description: 'Новый клиент (создаётся вместе со сделкой)',
+    type: NewCustomerDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NewCustomerDto)
+  newCustomer?: NewCustomerDto;
 
   // Единая точка входа (Этап 2): обычное создание всегда идёт на stage
   // по умолчанию ('todo' = «Входящие»). Поле status здесь отсутствует
@@ -75,18 +109,6 @@ export class CreateDealDto {
   @IsUUID()
   responsibleUserId: string;
 
-  @ApiPropertyOptional({ example: 'Иван Петров' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  contactName?: string;
-
-  @ApiPropertyOptional({ example: '+7 900 000-00-00' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  contactPhone?: string;
-
   @ApiPropertyOptional({ example: '2026-12-31T00:00:00.000Z' })
   @IsOptional()
   @IsDateString()
@@ -96,10 +118,4 @@ export class CreateDealDto {
   @IsOptional()
   @IsEnum(DealPriority)
   priority?: DealPriority;
-
-  @ApiPropertyOptional({ example: 'site' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  source?: string;
 }

@@ -13,15 +13,9 @@ import { TrimString } from './create-deal.dto';
 
 // Stage сделки здесь отсутствует намеренно: смена stage — только через
 // PATCH /deals/:id/stage (state machine по stage_transition_rules).
+// Компания/контакты/источник живут на клиенте (PATCH /customers/:id),
+// в сделке правятся только её собственные поля.
 export class UpdateDealDto {
-  @ApiPropertyOptional({ example: 'ООО Ромашка' })
-  @IsOptional()
-  @TrimString()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(200)
-  company?: string;
-
   @ApiPropertyOptional({
     example: 'Поставка 10 насосов, монтаж и пусконаладка',
   })
@@ -37,18 +31,6 @@ export class UpdateDealDto {
   @IsUUID()
   responsibleUserId?: string;
 
-  @ApiPropertyOptional({ example: 'Иван Петров' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  contactName?: string;
-
-  @ApiPropertyOptional({ example: '+7 900 000-00-00' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  contactPhone?: string;
-
   @ApiPropertyOptional({ example: '2026-12-31T00:00:00.000Z' })
   @IsOptional()
   @IsDateString()
@@ -58,10 +40,4 @@ export class UpdateDealDto {
   @IsOptional()
   @IsEnum(DealPriority)
   priority?: DealPriority;
-
-  @ApiPropertyOptional({ example: 'site' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  source?: string;
 }

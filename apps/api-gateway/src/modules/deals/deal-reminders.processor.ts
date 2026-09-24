@@ -18,6 +18,7 @@ export class DealRemindersProcessor extends WorkerHost {
   async process(job: Job<{ dealId: string }>) {
     const deal = await this.prisma.deal.findUnique({
       where: { id: job.data.dealId },
+      include: { customer: { select: { name: true } } },
     });
     if (
       !deal ||
@@ -32,7 +33,7 @@ export class DealRemindersProcessor extends WorkerHost {
       deal: {
         id: deal.id,
         name: deal.name,
-        company: deal.company,
+        customerName: deal.customer.name,
         status: deal.status,
         responsibleUserId: deal.responsibleUserId,
         deadline: deal.deadline ? deal.deadline.toISOString() : null,

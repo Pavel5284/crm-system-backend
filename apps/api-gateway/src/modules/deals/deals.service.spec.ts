@@ -30,12 +30,18 @@ describe('DealsService', () => {
   let remindersQueue: { add: jest.Mock; remove: jest.Mock };
   let configService: { get: jest.Mock };
 
-  const customer = { id: 'customer-1', name: 'Клиент', email: 'c@c.com' };
+  const customer = {
+    id: 'customer-1',
+    name: 'Клиент',
+    email: 'c@c.com',
+    phone: '+7 900 000-00-00',
+    contactPerson: 'Иван',
+    fromSource: 'site',
+  };
 
   const baseDeal = {
     id: 'deal-1',
     name: 'Сделка',
-    company: 'ООО Тест',
     description: 'Достаточно длинное описание',
     mainComment: null,
     price: 1000,
@@ -44,11 +50,8 @@ describe('DealsService', () => {
     customer,
     responsibleUserId: 'user-resp',
     responsibleUserIds: ['user-resp'],
-    contactName: 'Иван',
-    contactPhone: '+7 900 000-00-00',
     deadline: null,
     priority: DealPriority.MEDIUM,
-    source: null,
     isImported: false,
     importedBy: null,
     createdAt: new Date(),
@@ -62,7 +65,7 @@ describe('DealsService', () => {
     fromStage: 'todo',
     toStage: 'to-be-agreed',
     allowedRoles: [Role.MANAGER, Role.ADMIN, Role.USER],
-    requiredFields: ['company', 'description', 'contactName'],
+    requiredFields: ['description'],
   };
 
   beforeEach(async () => {
@@ -151,7 +154,6 @@ describe('DealsService', () => {
     it('бросает BadRequestException со списком незаполненных полей', async () => {
       prisma.deal.findUnique.mockResolvedValue({
         ...baseDeal,
-        contactName: null,
         description: '',
       });
       prisma.stageTransitionRule.findUnique.mockResolvedValue(rule);
@@ -161,7 +163,6 @@ describe('DealsService', () => {
         actor,
       );
       await expect(promise).rejects.toThrow(BadRequestException);
-      await expect(promise).rejects.toThrow(/contactName/);
       await expect(promise).rejects.toThrow(/description/);
       expect(prisma.deal.update).not.toHaveBeenCalled();
     });
@@ -391,11 +392,9 @@ describe('DealsService', () => {
   describe('create', () => {
     const dto = {
       name: 'Сделка',
-      company: 'ООО Тест',
       description: 'Достаточно длинное описание',
       price: 1000,
-      customerEmail: 'c@c.com',
-      customerName: 'Клиент',
+      customerId: customer.id,
       responsibleUserId: 'user-resp',
     };
 
@@ -409,7 +408,70 @@ describe('DealsService', () => {
       expect(createArgOf(prisma.deal.create).data).toMatchObject({
         status: 'todo',
         isImported: false,
+        customerId: customer.id,
       });
+    });
+
+    it('создаёт нового клиента из newCustomer', async () => {
+      prisma.customer.findUnique.mockResolvedValue(null);
+      prisma.customer.create.mockResolvedValue(customer);
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-resp' });
+      prisma.deal.create.mockResolvedValue(baseDeal);
+
+      await service.create({
+        name: 'Сделка',
+        description: 'Достаточно длинное описание',
+        price: 1000,
+        newCustomer: { name: 'Клиент', email: 'C@C.com' },
+        responsibleUserId: 'user-resp',
+      });
+
+      expect(prisma.customer.create).toHaveBeenCalled();
+      expect(createArgOf(prisma.customer.create).data).toMatchObject({
+        email: 'c@c.com',
+      });
+      expect(createArgOf(prisma.deal.create).data).toMatchObject({
+        customerId: customer.id,
+      });
+    });
+
+    it('бросает ConflictException, если email нового клиента занят', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'other' });
+      await expect(
+        service.create({
+          name: 'Сделка',
+          description: 'Достаточно длинное описание',
+          price: 1000,
+          newCustomer: { name: 'Клиент', email: 'c@c.com' },
+          responsibleUserId: 'user-resp',
+        }),
+      ).rejects.toThrow(/уже существует/);
+      expect(prisma.deal.create).not.toHaveBeenCalled();
+    });
+
+    it('бросает BadRequestException без клиента и при обоих вариантах', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-resp' });
+      await expect(
+        service.create({
+          name: 'Сделка',
+          description: 'Достаточно длинное описание',
+          price: 1000,
+          responsibleUserId: 'user-resp',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create({
+          ...dto,
+          newCustomer: { name: 'Клиент', email: 'c@c.com' },
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.deal.create).not.toHaveBeenCalled();
+    });
+
+    it('бросает NotFoundException на неизвестного клиента', async () => {
+      prisma.customer.findUnique.mockResolvedValue(null);
+      await expect(service.create(dto)).rejects.toThrow(NotFoundException);
+      expect(prisma.deal.create).not.toHaveBeenCalled();
     });
 
     it('бросает NotFoundException на неизвестного ответственного', async () => {
@@ -433,11 +495,9 @@ describe('DealsService', () => {
 
       const result = await service.import({
         name: 'Сделка',
-        company: 'ООО Тест',
         description: 'Достаточно длинное описание',
         price: 1000,
-        customerEmail: 'c@c.com',
-        customerName: 'Клиент',
+        customerId: customer.id,
         responsibleUserId: 'user-resp',
         status: 'in-progress',
         isImported: true,
@@ -521,7 +581,7 @@ describe('DealsService', () => {
     it('не трогает очередь без VALKEY_URL', async () => {
       prisma.deal.findUnique.mockResolvedValue(baseDeal);
       prisma.deal.update.mockResolvedValue(baseDeal);
-      await service.update('deal-1', { company: 'ООО Новая' });
+      await service.update('deal-1', { description: 'Новое описание сделки' });
       expect(remindersQueue.add).not.toHaveBeenCalled();
       expect(remindersQueue.remove).not.toHaveBeenCalled();
     });

@@ -10,6 +10,8 @@ const CUSTOMER_SELECT = {
   id: true,
   name: true,
   email: true,
+  phone: true,
+  contactPerson: true,
   avatarUrl: true,
   fromSource: true,
   createdAt: true,
@@ -21,10 +23,15 @@ export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    return this.prisma.customer.findMany({
+    const customers = await this.prisma.customer.findMany({
       orderBy: { createdAt: 'asc' },
-      select: CUSTOMER_SELECT,
+      select: { ...CUSTOMER_SELECT, _count: { select: { deals: true } } },
     });
+    // Производное поле «Количество сделок» — подсчёт по client_id (customerId).
+    return customers.map(({ _count, ...customer }) => ({
+      ...customer,
+      dealsCount: _count.deals,
+    }));
   }
 
   async findOne(id: string) {
@@ -63,6 +70,8 @@ export class CustomersService {
       data: {
         name: dto.name,
         email,
+        phone: dto.phone ?? undefined,
+        contactPerson: dto.contactPerson ?? undefined,
         fromSource: dto.fromSource,
       },
       select: CUSTOMER_SELECT,

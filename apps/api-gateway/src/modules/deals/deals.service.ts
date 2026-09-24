@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -17,13 +18,33 @@ import {
 } from '@app/shared';
 import { DealPriority } from '@prisma/client';
 import { ChangeDealStageDto } from './dto/change-deal-stage.dto';
-import { CreateDealDto } from './dto/create-deal.dto';
+import { CreateDealDto, NewCustomerDto } from './dto/create-deal.dto';
 import { ImportDealDto } from './dto/import-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 import { UpdateMainCommentDto } from './dto/update-main-comment.dto';
 import { UpdateResponsiblesDto } from './dto/update-responsibles.dto';
 
 export const DEFAULT_DEAL_STAGE = 'todo';
+
+// Компания/контакты/телефон/источник берутся из связанного клиента
+// джойном по customerId (client_id) — в самой сделке не хранятся.
+const CUSTOMER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  contactPerson: true,
+  fromSource: true,
+} as const;
+
+type DealCustomer = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  contactPerson: string | null;
+  fromSource: string | null;
+};
 
 function isFilled(value: unknown): boolean {
   if (value === null || value === undefined) return false;
@@ -34,7 +55,6 @@ function isFilled(value: unknown): boolean {
 type DealWithCustomer = {
   id: string;
   name: string;
-  company: string;
   description: string;
   // Опциональное — чтобы добавление полей в схему не роняло сборку,
   // если клиент/mocks ещё без нового поля; в DTO всегда нормализуем в null.
@@ -44,16 +64,13 @@ type DealWithCustomer = {
   customerId: string;
   responsibleUserId: string | null;
   responsibleUserIds?: string[];
-  contactName: string | null;
-  contactPhone: string | null;
   deadline: Date | null;
   priority: DealPriority;
-  source: string | null;
   isImported: boolean;
   importedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
-  customer: { id: string; name: string; email: string };
+  customer: DealCustomer;
   responsible?: { name: string } | null;
 };
 
@@ -111,20 +128,15 @@ export class DealsService {
     return {
       id: deal.id,
       name: deal.name,
-      company: deal.company,
       description: deal.description,
       mainComment: deal.mainComment ?? null,
       price: Number(deal.price),
       status: deal.status,
       customerId: deal.customerId,
-      customerName: deal.customer.name,
-      customerEmail: deal.customer.email,
+      customer: deal.customer,
       responsibleUserId: deal.responsibleUserId,
-      contactName: deal.contactName,
-      contactPhone: deal.contactPhone,
       deadline: deal.deadline,
       priority: deal.priority,
-      source: deal.source,
       isImported: deal.isImported,
       importedBy: deal.importedBy,
       responsibleName: deal.responsible?.name ?? null,
@@ -143,6 +155,52 @@ export class DealsService {
     }
   }
 
+  // Клиент сделки: либо выбор существующего (customerId),
+  // либо создание нового (newCustomer). Ровно один вариант.
+  private async resolveCustomer(dto: {
+    customerId?: string;
+    newCustomer?: NewCustomerDto;
+  }) {
+    if (dto.customerId && dto.newCustomer) {
+      throw new BadRequestException(
+        'Укажите либо customerId, либо newCustomer, но не оба сразу',
+      );
+    }
+    if (dto.customerId) {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: dto.customerId },
+      });
+      if (!customer) {
+        throw new NotFoundException(`Клиент ${dto.customerId} не найден`);
+      }
+      return customer;
+    }
+    if (dto.newCustomer) {
+      const email = dto.newCustomer.email.trim().toLowerCase();
+      const duplicate = await this.prisma.customer.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new ConflictException(
+          `Клиент с email ${email} уже существует — выберите его из списка`,
+        );
+      }
+      return this.prisma.customer.create({
+        data: {
+          name: dto.newCustomer.name,
+          email,
+          phone: dto.newCustomer.phone,
+          contactPerson: dto.newCustomer.contactPerson,
+          fromSource: dto.newCustomer.fromSource,
+        },
+      });
+    }
+    throw new BadRequestException(
+      'Укажите клиента сделки: customerId или newCustomer',
+    );
+  }
+
   private async findRule(fromStage: string, toStage: string) {
     return this.prisma.stageTransitionRule.findUnique({
       where: { fromStage_toStage: { fromStage, toStage } },
@@ -153,7 +211,7 @@ export class DealsService {
     const deals = await this.prisma.deal.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
-        customer: { select: { id: true, name: true, email: true } },
+        customer: { select: CUSTOMER_SELECT },
         responsible: { select: { name: true } },
       },
     });
@@ -164,7 +222,7 @@ export class DealsService {
     const deal = await this.prisma.deal.findUnique({
       where: { id },
       include: {
-        customer: { select: { id: true, name: true, email: true } },
+        customer: { select: CUSTOMER_SELECT },
         responsible: { select: { id: true, name: true, email: true } },
         items: { orderBy: { createdAt: 'asc' } },
         stageHistory: {
@@ -214,13 +272,7 @@ export class DealsService {
   }
 
   async create(dto: CreateDealDto) {
-    const email = dto.customerEmail.trim().toLowerCase();
-    let customer = await this.prisma.customer.findUnique({ where: { email } });
-    if (!customer) {
-      customer = await this.prisma.customer.create({
-        data: { email, name: dto.customerName },
-      });
-    }
+    const customer = await this.resolveCustomer(dto);
 
     // responsibleUserId обязателен при создании (Этап 5): 404 на неизвестный id.
     await this.ensureUserExists(dto.responsibleUserId);
@@ -229,34 +281,24 @@ export class DealsService {
     const deal = await this.prisma.deal.create({
       data: {
         name: dto.name,
-        company: dto.company,
         description: dto.description,
         price: dto.price,
         status: DEFAULT_DEAL_STAGE,
         customerId: customer.id,
         responsibleUserId: dto.responsibleUserId,
         responsibleUserIds: [dto.responsibleUserId],
-        contactName: dto.contactName,
-        contactPhone: dto.contactPhone,
         deadline: dto.deadline ? new Date(dto.deadline) : undefined,
         priority: dto.priority ?? DealPriority.MEDIUM,
-        source: dto.source,
         isImported: false,
       },
-      include: { customer: { select: { id: true, name: true, email: true } } },
+      include: { customer: { select: CUSTOMER_SELECT } },
     });
     await this.scheduleDeadlineReminder(deal);
     return this.toDto(deal);
   }
 
   async import(dto: ImportDealDto) {
-    const email = dto.customerEmail.trim().toLowerCase();
-    let customer = await this.prisma.customer.findUnique({ where: { email } });
-    if (!customer) {
-      customer = await this.prisma.customer.create({
-        data: { email, name: dto.customerName },
-      });
-    }
+    const customer = await this.resolveCustomer(dto);
 
     await this.ensureUserExists(dto.responsibleUserId);
     await this.ensureUserExists(dto.importedBy);
@@ -264,22 +306,18 @@ export class DealsService {
     const deal = await this.prisma.deal.create({
       data: {
         name: dto.name,
-        company: dto.company,
         description: dto.description,
         price: dto.price,
         status: dto.status,
         customerId: customer.id,
         responsibleUserId: dto.responsibleUserId,
         responsibleUserIds: [dto.responsibleUserId],
-        contactName: dto.contactName,
-        contactPhone: dto.contactPhone,
         deadline: dto.deadline ? new Date(dto.deadline) : undefined,
         priority: dto.priority ?? DealPriority.MEDIUM,
-        source: dto.source,
         isImported: true,
         importedBy: dto.importedBy,
       },
-      include: { customer: { select: { id: true, name: true, email: true } } },
+      include: { customer: { select: CUSTOMER_SELECT } },
     });
     await this.scheduleDeadlineReminder(deal);
     return this.toDto(deal);
@@ -299,7 +337,6 @@ export class DealsService {
     const deal = await this.prisma.deal.update({
       where: { id },
       data: {
-        company: dto.company,
         description: dto.description,
         responsibleUserId: dto.responsibleUserId,
         ...(dto.responsibleUserId !== undefined
@@ -312,13 +349,10 @@ export class DealsService {
               ],
             }
           : {}),
-        contactName: dto.contactName,
-        contactPhone: dto.contactPhone,
         deadline: dto.deadline ? new Date(dto.deadline) : undefined,
         priority: dto.priority,
-        source: dto.source,
       },
-      include: { customer: { select: { id: true, name: true, email: true } } },
+      include: { customer: { select: CUSTOMER_SELECT } },
     });
     if (
       dto.deadline &&
@@ -352,7 +386,7 @@ export class DealsService {
     const deal = await this.prisma.deal.update({
       where: { id },
       data: { responsibleUserIds: ids, responsibleUserId: ids[0] ?? null },
-      include: { customer: { select: { id: true, name: true, email: true } } },
+      include: { customer: { select: CUSTOMER_SELECT } },
     });
     return this.toDto(deal);
   }
@@ -368,7 +402,7 @@ export class DealsService {
     const deal = await this.prisma.deal.update({
       where: { id },
       data: { mainComment },
-      include: { customer: { select: { id: true, name: true, email: true } } },
+      include: { customer: { select: CUSTOMER_SELECT } },
     });
     return this.toDto(deal);
   }
@@ -376,7 +410,7 @@ export class DealsService {
   async changeStage(id: string, dto: ChangeDealStageDto, actor: AuthUser) {
     const existing = await this.prisma.deal.findUnique({
       where: { id },
-      include: { customer: { select: { id: true, name: true, email: true } } },
+      include: { customer: { select: CUSTOMER_SELECT } },
     });
     if (!existing) {
       throw new NotFoundException(`Сделка ${id} не найдена`);
@@ -420,7 +454,7 @@ export class DealsService {
         where: { id },
         data: { status: toStage },
         include: {
-          customer: { select: { id: true, name: true, email: true } },
+          customer: { select: CUSTOMER_SELECT },
         },
       }),
       this.prisma.dealStageHistory.create({
@@ -441,7 +475,7 @@ export class DealsService {
         deal: {
           id: updated.id,
           name: updated.name,
-          company: updated.company,
+          customerName: updated.customer.name,
           status: updated.status,
           responsibleUserId: updated.responsibleUserId,
           deadline: updated.deadline ? updated.deadline.toISOString() : null,

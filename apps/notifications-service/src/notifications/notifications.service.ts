@@ -80,7 +80,7 @@ export class NotificationsService {
       {
         dealId: deal.id,
         name: deal.name,
-        company: deal.company,
+        customerName: deal.customerName,
         fromStage,
         toStage,
         comment,
@@ -96,7 +96,7 @@ export class NotificationsService {
       {
         dealId: deal.id,
         name: deal.name,
-        company: deal.company,
+        customerName: deal.customerName,
         status: deal.status,
         deadline: deal.deadline,
       },

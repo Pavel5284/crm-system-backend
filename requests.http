@@ -92,17 +92,36 @@ Content-Type: application/json
 GET http://localhost:3001/api/deals
 Authorization: Bearer {{aliceToken}}
 
-### Создание сделки (клиент ищется/создаётся по email)
+### Создание сделки (вариант 1: существующий клиент по customerId)
 POST http://localhost:3001/api/deals
 Authorization: Bearer {{aliceToken}}
 Content-Type: application/json
 
 {
   "name": "Поставка оборудования",
+  "description": "Поставка 10 насосов, монтаж и пусконаладка",
   "price": 150000,
-  "customerEmail": "client@example.com",
-  "customerName": "ООО Ромашка",
-  "status": "todo"
+  "customerId": "CUSTOMER_ID",
+  "responsibleUserId": "USER_ID"
+}
+
+### Создание сделки (вариант 2: новый клиент создаётся вместе со сделкой)
+POST http://localhost:3001/api/deals
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "name": "Поставка оборудования",
+  "description": "Поставка 10 насосов, монтаж и пусконаладка",
+  "price": 150000,
+  "newCustomer": {
+    "name": "ООО Ромашка",
+    "email": "client@example.com",
+    "phone": "+7 900 000-00-00",
+    "contactPerson": "Иван Петров",
+    "fromSource": "site"
+  },
+  "responsibleUserId": "USER_ID"
 }
 
 > {%

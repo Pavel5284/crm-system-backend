@@ -108,13 +108,15 @@ model Task {
 }
 
 model Customer {
-  id         String   @id @default(uuid())
-  name       String
-  email      String   @unique
-  avatarUrl  String   @default("")
-  fromSource String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  contactPerson String?
+  avatarUrl     String   @default("")
+  fromSource    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   deals Deal[]
 
@@ -124,9 +126,6 @@ model Customer {
 model Deal {
   id          String       @id @default(uuid())
   name        String
-  // Обязательное: минимальная длина проверяется на уровне DTO.
-  // DEFAULT '' — чтобы миграция не затирала существующие строки.
-  company     String       @default("")
   // Обязательное: непустое значение проверяется на уровне DTO.
   // DEFAULT '' — чтобы миграция не затирала существующие строки.
   description String       @default("")
@@ -144,11 +143,8 @@ model Deal {
   // DEFAULT [] — новые строки; старые бэкфилятся миграцией из responsibleUserId.
   responsibleUserIds String[] @default([])
 
-  contactName  String?
-  contactPhone String?
   deadline     DateTime?
   priority     DealPriority @default(MEDIUM)
-  source       String?
 
   // Импорт: сделки, внесённые сразу на произвольный этап через POST /deals/import.
   // Обычное создание всегда ставит isImported = false (см. DealsService.create).

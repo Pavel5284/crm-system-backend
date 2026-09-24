@@ -45,16 +45,14 @@ describe('Deals API (e2e)', () => {
 
   const base = {
     name: 'Сделка e2e',
-    company: 'ООО Тест',
     description: 'Достаточно длинное описание сделки',
     price: 1000,
-    customerEmail: 'deals-e2e@example.com',
-    customerName: 'Клиент',
   };
 
   let userToken: string;
   let adminToken: string;
   let userId: string;
+  let customerId: string;
 
   function prisma() {
     const adapter = new PrismaPg({
@@ -100,6 +98,10 @@ describe('Deals API (e2e)', () => {
         select: { id: true },
       });
       userId = user.id;
+      const customer = await p.customer.create({
+        data: { email: 'deals-e2e@example.com', name: 'Клиент' },
+      });
+      customerId = customer.id;
     } finally {
       await p.$disconnect();
     }
@@ -113,7 +115,12 @@ describe('Deals API (e2e)', () => {
     await request(httpServer)
       .post('/api/deals')
       .set('Authorization', `Bearer ${userToken}`)
-      .send({ ...base, status: 'in-progress', responsibleUserId: userId })
+      .send({
+        ...base,
+        customerId,
+        status: 'in-progress',
+        responsibleUserId: userId,
+      })
       .expect(400);
 
     // Отдельный эндпоинт импорта — только для admin.
@@ -122,7 +129,7 @@ describe('Deals API (e2e)', () => {
       .set('Authorization', `Bearer ${userToken}`)
       .send({
         ...base,
-        customerEmail: 'deals-import-forbidden@example.com',
+        customerId,
         status: 'in-progress',
         isImported: true,
         importedBy: userId,
@@ -137,7 +144,7 @@ describe('Deals API (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         ...base,
-        customerEmail: 'deals-import@example.com',
+        customerId,
         status: 'in-progress',
         isImported: true,
         importedBy: userId,
@@ -152,8 +159,8 @@ describe('Deals API (e2e)', () => {
   });
 
   it('legacy-строка (дефолты миграции) читается и обновляется', async () => {
-    // Строка вида «до Этапа 1»: только обязательные на тот момент поля,
-    // остальные — дефолты миграции (company '', isImported false, ...).
+    // Строка с минимумом полей: остальные —
+    // дефолты схемы (description '', isImported false, ...).
     const p = prisma();
     let legacyId: string;
     try {
@@ -181,11 +188,11 @@ describe('Deals API (e2e)', () => {
       .set('Authorization', `Bearer ${userToken}`)
       .expect(200);
 
-    // Обновление company/description доводит строку до новых требований.
+    // Обновление description доводит строку до новых требований.
     await request(httpServer)
       .patch(`/api/deals/${legacyId}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ company: 'ООО Легаси', description: 'Доведено до требований' })
+      .send({ description: 'Доведено до требований' })
       .expect(200);
 
     // Переход без комментария разрешён: комментарий перехода необязателен

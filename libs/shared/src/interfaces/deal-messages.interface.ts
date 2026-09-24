@@ -1,7 +1,7 @@
 interface DealRef {
   id: string;
   name: string;
-  company: string;
+  customerName: string;
   status: string;
   responsibleUserId: string | null;
   /** ISO-строка или null (даты через RMQ едут строками) */

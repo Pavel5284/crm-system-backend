@@ -16,14 +16,11 @@ export type DealStage = (typeof DEAL_STAGES)[number];
 // Имена полей модели Deal, на которые может ссылаться
 // StageTransitionRule.requiredFields.
 export const DEAL_REQUIRED_FIELD_KEYS = [
-  "company",
+  "customerId",
   "description",
   "responsibleUserId",
-  "contactName",
-  "contactPhone",
   "deadline",
   "priority",
-  "source",
 ] as const;
 
 export type DealRequiredFieldKey = (typeof DEAL_REQUIRED_FIELD_KEYS)[number];
