@@ -71,7 +71,9 @@ export class DealsController {
   }
 
   @Patch(':id/main-comment')
-  @Roles(Role.ADMIN, Role.MANAGER)
+  // USER — legacy-значение (по смыслу MANAGER): как и в DEAL_PERMISSIONS,
+  // имеет права менеджера, включая главный комментарий.
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER)
   updateMainComment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateMainCommentDto,
