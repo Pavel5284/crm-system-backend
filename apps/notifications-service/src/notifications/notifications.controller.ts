@@ -35,6 +35,11 @@ export class NotificationsController {
     return this.notificationsService.handleDealDeadlineSoon(payload);
   }
 
+  @EventPattern(shared.DEAL_EVENTS.ASSIGNED)
+  handleDealAssigned(@Payload() payload: shared.DealAssignedEventPayload) {
+    return this.notificationsService.handleDealAssigned(payload);
+  }
+
   @MessagePattern(shared.NOTIFICATION_PATTERNS.FIND_MINE)
   findMine(@Payload() message: shared.FindMyNotificationsMessage) {
     return this.notificationsService.findMine(message.userId);
@@ -43,5 +48,10 @@ export class NotificationsController {
   @MessagePattern(shared.NOTIFICATION_PATTERNS.MARK_READ)
   markRead(@Payload() message: shared.MarkNotificationReadMessage) {
     return this.notificationsService.markRead(message.id, message.userId);
+  }
+
+  @MessagePattern(shared.NOTIFICATION_PATTERNS.MARK_ALL_READ)
+  markAllRead(@Payload() message: shared.MarkAllNotificationsReadMessage) {
+    return this.notificationsService.markAllRead(message.userId);
   }
 }

@@ -26,6 +26,17 @@ export class NotificationsController {
     });
   }
 
+  @Patch('read-all')
+  markAllRead(@CurrentUser('id') userId: string) {
+    return sendRpc(
+      this.notificationsClient,
+      NOTIFICATION_PATTERNS.MARK_ALL_READ,
+      {
+        userId,
+      },
+    );
+  }
+
   @Patch(':id/read')
   markRead(
     @Param('id', ParseUUIDPipe) id: string,

@@ -7,6 +7,7 @@ import {
   NOTIFICATION_EVENTS,
   TaskAssignedEventPayload,
   TaskCompletedEventPayload,
+  DealAssignedEventPayload,
   DealStageChangedEventPayload,
   DealDeadlineSoonEventPayload,
 } from "@app/shared";
@@ -49,10 +50,19 @@ export class NotificationsService {
     if (!notification || notification.userId !== userId) {
       throw new NotFoundException("Уведомление не найдено");
     }
+    if (notification.read) return notification;
     return this.prisma.notification.update({
       where: { id },
       data: { read: true },
     });
+  }
+
+  async markAllRead(userId: string) {
+    const res = await this.prisma.notification.updateMany({
+      where: { userId, read: false },
+      data: { read: true },
+    });
+    return { updated: res.count };
   }
   async handleTaskDueSoon({
     task,
@@ -101,6 +111,21 @@ export class NotificationsService {
         deadline: deal.deadline,
       },
     );
+  }
+
+  async handleDealAssigned({
+    deal,
+    assigneeUserId,
+    actorId,
+  }: DealAssignedEventPayload) {
+    if (!assigneeUserId || assigneeUserId === actorId) return;
+    await this.notify(assigneeUserId, NotificationType.DEAL_ASSIGNED, {
+      dealId: deal.id,
+      name: deal.name,
+      customerName: deal.customerName,
+      status: deal.status,
+      deadline: deal.deadline,
+    });
   }
 
   private async notify(

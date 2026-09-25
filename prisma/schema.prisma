@@ -246,6 +246,7 @@ enum NotificationType {
   TASK_DUE_SOON
   DEAL_STAGE_CHANGED
   DEAL_DEADLINE_SOON
+  DEAL_ASSIGNED
 }
 
 model Notification {

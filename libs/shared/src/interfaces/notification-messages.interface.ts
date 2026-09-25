@@ -16,3 +16,11 @@ export interface MarkNotificationReadMessage {
   id: string;
   userId: string;
 }
+
+export interface MarkAllNotificationsReadMessage {
+  userId: string;
+}
+
+export interface MarkAllNotificationsReadResult {
+  updated: number;
+}

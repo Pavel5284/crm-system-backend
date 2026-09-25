@@ -45,14 +45,14 @@ export class DealsController {
 
   @Post()
   @Roles(...shared.DEAL_PERMISSIONS.DEALS_CREATE)
-  create(@Body() dto: CreateDealDto) {
-    return this.dealsService.create(dto);
+  create(@Body() dto: CreateDealDto, @CurrentUser() user: shared.AuthUser) {
+    return this.dealsService.create(dto, user.id);
   }
 
   @Post('import')
   @Roles(...shared.DEAL_PERMISSIONS.DEALS_IMPORT)
-  import(@Body() dto: ImportDealDto) {
-    return this.dealsService.import(dto);
+  import(@Body() dto: ImportDealDto, @CurrentUser() user: shared.AuthUser) {
+    return this.dealsService.import(dto, user.id);
   }
 
   @Patch(':id/stage')
@@ -66,8 +66,12 @@ export class DealsController {
 
   @Patch(':id')
   @Roles(...shared.DEAL_PERMISSIONS.DEALS_UPDATE)
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDealDto) {
-    return this.dealsService.update(id, dto);
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateDealDto,
+    @CurrentUser() user: shared.AuthUser,
+  ) {
+    return this.dealsService.update(id, dto, user.id);
   }
 
   @Patch(':id/main-comment')
@@ -86,8 +90,9 @@ export class DealsController {
   updateResponsibles(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateResponsiblesDto,
+    @CurrentUser() user: shared.AuthUser,
   ) {
-    return this.dealsService.updateResponsibles(id, dto);
+    return this.dealsService.updateResponsibles(id, dto, user.id);
   }
 
   @Delete(':id')

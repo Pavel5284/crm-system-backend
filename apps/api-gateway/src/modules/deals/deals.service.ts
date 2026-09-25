@@ -14,6 +14,7 @@ import { PrismaService } from '@app/database';
 import {
   AuthUser,
   DEAL_EVENTS,
+  DealAssignedEventPayload,
   DealStageChangedEventPayload,
 } from '@app/shared';
 import { DealPriority } from '@prisma/client';
@@ -155,6 +156,38 @@ export class DealsService {
     }
   }
 
+  // Реестр уведомлений о назначении: один получатель — одно событие
+  // (расширяемо: новые типы уведомлений добавляются как новые
+  // DEAL_EVENTS + обработчик в notifications-service).
+  private buildDealRef(
+    deal: { id: string; name: string; status: string; deadline: Date | null },
+    customerName: string,
+    responsibleUserId: string | null,
+  ) {
+    return {
+      id: deal.id,
+      name: deal.name,
+      customerName,
+      status: deal.status,
+      responsibleUserId,
+      deadline: deal.deadline ? deal.deadline.toISOString() : null,
+    };
+  }
+
+  private emitDealAssigned(
+    dealRef: DealAssignedEventPayload['deal'],
+    assigneeUserId: string | null | undefined,
+    actorId?: string,
+  ) {
+    if (!assigneeUserId || assigneeUserId === actorId) return;
+    const payload: DealAssignedEventPayload = {
+      deal: dealRef,
+      assigneeUserId,
+      actorId,
+    };
+    this.notificationsClient.emit(DEAL_EVENTS.ASSIGNED, payload);
+  }
+
   // Клиент сделки: либо выбор существующего (customerId),
   // либо создание нового (newCustomer). Ровно один вариант.
   private async resolveCustomer(dto: {
@@ -271,7 +304,7 @@ export class DealsService {
     };
   }
 
-  async create(dto: CreateDealDto) {
+  async create(dto: CreateDealDto, actorId?: string) {
     const customer = await this.resolveCustomer(dto);
 
     // responsibleUserId обязателен при создании (Этап 5): 404 на неизвестный id.
@@ -294,10 +327,15 @@ export class DealsService {
       include: { customer: { select: CUSTOMER_SELECT } },
     });
     await this.scheduleDeadlineReminder(deal);
+    this.emitDealAssigned(
+      this.buildDealRef(deal, deal.customer.name, deal.responsibleUserId),
+      deal.responsibleUserId,
+      actorId,
+    );
     return this.toDto(deal);
   }
 
-  async import(dto: ImportDealDto) {
+  async import(dto: ImportDealDto, actorId?: string) {
     const customer = await this.resolveCustomer(dto);
 
     await this.ensureUserExists(dto.responsibleUserId);
@@ -320,10 +358,15 @@ export class DealsService {
       include: { customer: { select: CUSTOMER_SELECT } },
     });
     await this.scheduleDeadlineReminder(deal);
+    this.emitDealAssigned(
+      this.buildDealRef(deal, deal.customer.name, deal.responsibleUserId),
+      deal.responsibleUserId,
+      actorId,
+    );
     return this.toDto(deal);
   }
 
-  async update(id: string, dto: UpdateDealDto) {
+  async update(id: string, dto: UpdateDealDto, actorId?: string) {
     const existing = await this.prisma.deal.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Сделка ${id} не найдена`);
@@ -361,13 +404,28 @@ export class DealsService {
       await this.removeDeadlineReminder(id);
       await this.scheduleDeadlineReminder(deal);
     }
+    if (
+      dto.responsibleUserId !== undefined &&
+      dto.responsibleUserId &&
+      dto.responsibleUserId !== existing.responsibleUserId
+    ) {
+      this.emitDealAssigned(
+        this.buildDealRef(deal, deal.customer.name, deal.responsibleUserId),
+        dto.responsibleUserId,
+        actorId,
+      );
+    }
     return this.toDto(deal);
   }
 
   // Полная замена состава ответственных. Первый id = главный
   // (пишется и в responsibleUserId для совместимости уведомлений/фильтров).
   // Пустой массив снимает всех. Доступ — как у PATCH /deals/:id.
-  async updateResponsibles(id: string, dto: UpdateResponsiblesDto) {
+  async updateResponsibles(
+    id: string,
+    dto: UpdateResponsiblesDto,
+    actorId?: string,
+  ) {
     const existing = await this.prisma.deal.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException(`Сделка ${id} не найдена`);
@@ -388,6 +446,18 @@ export class DealsService {
       data: { responsibleUserIds: ids, responsibleUserId: ids[0] ?? null },
       include: { customer: { select: CUSTOMER_SELECT } },
     });
+    const prevIds = new Set(
+      existing.responsibleUserIds ??
+        (existing.responsibleUserId ? [existing.responsibleUserId] : []),
+    );
+    const dealRef = this.buildDealRef(
+      deal,
+      deal.customer.name,
+      deal.responsibleUserId,
+    );
+    for (const userId of ids) {
+      if (!prevIds.has(userId)) this.emitDealAssigned(dealRef, userId, actorId);
+    }
     return this.toDto(deal);
   }
 

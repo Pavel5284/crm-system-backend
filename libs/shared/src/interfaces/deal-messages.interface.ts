@@ -20,3 +20,16 @@ export interface DealDeadlineSoonEventPayload {
   deal: DealRef;
   actorId: string;
 }
+
+/**
+ * Назначение ответственного за сделку.
+ * Одно событие — один новый ответственный (поддерживает
+ * PATCH /deals/:id/responsibles с несколькими userIds).
+ * deal.responsibleUserId — главный на момент события (для совместимости),
+ * конкретный получатель — в assigneeUserId.
+ */
+export interface DealAssignedEventPayload {
+  deal: DealRef;
+  assigneeUserId: string;
+  actorId?: string;
+}
