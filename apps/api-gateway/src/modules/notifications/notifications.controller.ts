@@ -13,12 +13,15 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags } from '@nestjs/swagger';
+import { Logger } from '@nestjs/common';
 import { NOTIFICATION_PATTERNS, sendRpc } from '@app/shared';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('notifications')
 @Controller('notifications')
 export class NotificationsController {
+  private readonly logger = new Logger(NotificationsController.name);
+
   constructor(
     @Inject('NOTIFICATIONS_SERVICE')
     private readonly notificationsClient: ClientProxy,
@@ -49,12 +52,27 @@ export class NotificationsController {
     const baseUrl = this.configService.get<string>(
       'NOTIFICATIONS_SERVICE_HEALTH_URL',
     );
-    if (!baseUrl) return;
+    if (!baseUrl) {
+      this.logger.warn(
+        'NOTIFICATIONS_SERVICE_HEALTH_URL не задан — автопробуждение пропущено',
+      );
+      return;
+    }
     const url = `${baseUrl.replace(/\/$/, '')}/health`;
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
     fetch(url, { signal: controller.signal })
-      .catch(() => undefined)
+      .then((res) => {
+        this.logger.log(
+          `Wake ping ${url} -> ${res.status} за ${Date.now() - startedAt}мс`,
+        );
+      })
+      .catch((e) => {
+        this.logger.warn(
+          `Wake ping ${url} не удался за ${Date.now() - startedAt}мс: ${String((e as Error)?.message ?? e)}`,
+        );
+      })
       .finally(() => clearTimeout(timer));
   }
 
