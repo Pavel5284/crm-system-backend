@@ -22,6 +22,7 @@ export const NOTIFICATION_PATTERNS = {
   FIND_MINE: "notifications.find_mine",
   MARK_READ: "notifications.mark_read",
   MARK_ALL_READ: "notifications.mark_all_read",
+  DELETE_READ: "notifications.delete_read",
 } as const;
 
 export const NOTIFICATION_EVENTS = {

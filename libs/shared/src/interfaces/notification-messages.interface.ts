@@ -24,3 +24,11 @@ export interface MarkAllNotificationsReadMessage {
 export interface MarkAllNotificationsReadResult {
   updated: number;
 }
+
+export interface DeleteReadNotificationsMessage {
+  userId: string;
+}
+
+export interface DeleteReadNotificationsResult {
+  deleted: number;
+}

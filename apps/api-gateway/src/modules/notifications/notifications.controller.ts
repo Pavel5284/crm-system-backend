@@ -1,6 +1,9 @@
 import {
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -46,5 +49,17 @@ export class NotificationsController {
       id,
       userId,
     });
+  }
+
+  @Delete('read')
+  @HttpCode(HttpStatus.OK)
+  deleteRead(@CurrentUser('id') userId: string) {
+    return sendRpc(
+      this.notificationsClient,
+      NOTIFICATION_PATTERNS.DELETE_READ,
+      {
+        userId,
+      },
+    );
   }
 }

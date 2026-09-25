@@ -54,4 +54,9 @@ export class NotificationsController {
   markAllRead(@Payload() message: shared.MarkAllNotificationsReadMessage) {
     return this.notificationsService.markAllRead(message.userId);
   }
+
+  @MessagePattern(shared.NOTIFICATION_PATTERNS.DELETE_READ)
+  deleteRead(@Payload() message: shared.DeleteReadNotificationsMessage) {
+    return this.notificationsService.deleteRead(message.userId);
+  }
 }
