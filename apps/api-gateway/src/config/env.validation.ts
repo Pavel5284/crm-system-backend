@@ -24,6 +24,10 @@ const envSchema = baseEnvSchema.extend({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  // Публичный URL notifications-service для автопробуждения (free-план Render):
+  // при таймауте RPC gateway пинает его /health, фронт повторяет запрос.
+  // Необязательно: без него таймаут просто вернёт 504 без пинга.
+  NOTIFICATIONS_SERVICE_HEALTH_URL: z.string().url().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
