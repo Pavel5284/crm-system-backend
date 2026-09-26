@@ -70,8 +70,8 @@ export class CustomersService {
       data: {
         name: dto.name,
         email,
-        phone: dto.phone ?? undefined,
-        contactPerson: dto.contactPerson ?? undefined,
+        phone: dto.phone,
+        contactPerson: dto.contactPerson,
         fromSource: dto.fromSource,
       },
       select: CUSTOMER_SELECT,
