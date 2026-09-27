@@ -1,0 +1,29 @@
+name: keep-warm (Render free plan)
+
+# Free-план Render усыпляет веб-сервисы после ~15 мин без HTTP-трафика.
+# Очередь RabbitMQ спящий контейнер не будит, а цепочка холодных стартов
+# (gateway + notifications-service + Neon) не влезает в таймауты запросов.
+# Этот крон держит все публичные сервисы тёплыми: пинг раз в 10 минут.
+# Бонус: /health делает SELECT 1, заодно не даёт уснуть Neon Postgres.
+# Ручной запуск: Actions -> keep-warm -> Run workflow.
+# Если GitHub отключит расписание после 60 дней без коммитов —
+# продублируй те же URL в cron-job.org / UptimeRobot (каждые 5–10 мин).
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          for url in \
+            "https://crm-api-gateway-zyrg.onrender.com/api/health" \
+            "https://crm-notifications-service.onrender.com/health" \
+            "https://crm-tasks-service.onrender.com/health"; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$url" || echo "000")
+            echo "$url -> $code"
+          done
