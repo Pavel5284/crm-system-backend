@@ -10,6 +10,11 @@ export default defineConfig({
         seed: "ts-node prisma/seed.ts",
     },
     datasource: {
-        url: process.env["DATABASE_URL"],
+        // Migrations go through a DIRECT (non-pooled) connection when provided:
+        // PgBouncer in transaction mode breaks the session-level advisory lock
+        // used by `migrate deploy` (P1002), and a sleeping Neon doesn't fit
+        // into the 10s lock timeout. Runtime (PrismaPg adapter with
+        // DATABASE_URL) keeps using the pooler — this setting affects CLI only.
+        url: process.env["DIRECT_DATABASE_URL"] || process.env["DATABASE_URL"],
     },
 });

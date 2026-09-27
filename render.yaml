@@ -27,7 +27,7 @@ services:
     branch: main
     # rootDir: crm-system-backend # раскомментируй если render.yaml лежит в корне монорепо
     buildCommand: corepack prepare pnpm@11.22.0 --activate && pnpm install --frozen-lockfile && pnpm exec prisma generate && pnpm exec nest build api-gateway
-    startCommand: npx prisma migrate deploy && node dist/apps/api-gateway/apps/api-gateway/src/main.js
+    startCommand: npx prisma migrate deploy || (sleep 30 && npx prisma migrate deploy) && node dist/apps/api-gateway/apps/api-gateway/src/main.js
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
@@ -37,6 +37,8 @@ services:
         value: '10000'
       - key: DATABASE_URL
         sync: false # вставь URL из Neon: postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require
+      - key: DIRECT_DATABASE_URL
+        sync: false # Neon -> Connect -> Direct connection (тот же хост БЕЗ -pooler): только для prisma migrate deploy, без него миграции идут через DATABASE_URL
       - key: RABBITMQ_URL
         sync: false # вставь URL из CloudAMQP: amqps://user:pass@host/vhost
       - key: VALKEY_URL

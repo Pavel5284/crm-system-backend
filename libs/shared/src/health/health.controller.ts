@@ -1,9 +1,11 @@
 import { Controller, Get } from "@nestjs/common";
 import { HealthCheck, HealthCheckService } from "@nestjs/terminus";
+import { SkipThrottle } from "@nestjs/throttler";
 import { PrismaService } from "@app/database";
 import { Public } from "../decorators/public.decorator";
 
 @Public()
+@SkipThrottle()
 @Controller("health")
 export class HealthController {
   constructor(
