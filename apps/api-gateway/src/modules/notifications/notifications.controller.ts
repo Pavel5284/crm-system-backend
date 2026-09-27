@@ -23,7 +23,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 // 15с RPC-таймаута), а при таймауте ждём пробуждения (poll /health)
 // и повторяем RPC — один запрос возвращает данные вместо 503.
 // Если сервис так и не проснулся — отдаём 503, фронт повторит запрос.
-const HEALTH_POLL_INTERVAL_MS = 5_000;
+// Держим общий бюджет одинокого запроса в пределах ~90с (15 RPC + 60 ожидание
+// + 15 повтор): дольше 100с Cloudflare перед Render рвёт соединение (524).
+const HEALTH_POLL_INTERVAL_MS = 3_000;
 const HEALTH_WAIT_BUDGET_MS = 60_000;
 const HEALTH_FETCH_TIMEOUT_MS = 8_000;
 
@@ -126,16 +128,29 @@ export class NotificationsController {
   }
 
   // Ждём, пока /health начнёт отвечать 2xx (контейнер проснулся).
+  // Логируем исход с elapsed: по одному холодному запросу должно быть видно,
+  // проснулся ли сервис и за сколько, без гаданий по таймингам.
   private async waitForHealthy(
     budgetMs: number = HEALTH_WAIT_BUDGET_MS,
   ): Promise<boolean> {
     const url = this.resolveNotificationsHealthUrl();
     if (!url) return false;
     const startedAt = Date.now();
+    this.logger.log(`Ждём пробуждения notifications-service: ${url}`);
+    let attempts = 0;
     while (Date.now() - startedAt < budgetMs) {
-      if (await this.pingHealth(url)) return true;
+      attempts += 1;
+      if (await this.pingHealth(url)) {
+        this.logger.log(
+          `notifications-service проснулся за ${Date.now() - startedAt}мс (попыток: ${attempts})`,
+        );
+        return true;
+      }
       await sleep(HEALTH_POLL_INTERVAL_MS);
     }
+    this.logger.warn(
+      `notifications-service не проснулся за ${Date.now() - startedAt}мс (попыток: ${attempts}): ${url}`,
+    );
     return false;
   }
 
