@@ -18,7 +18,7 @@ import { NOTIFICATION_PATTERNS, sendRpc } from '@app/shared';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 // Free-план Render усыпляет notifications-service (очередь RMQ не будит),
-// холодный старт занимает 30–60с. Поэтому: будим сервис проактивно при
+// холодный старт занимает ~15–30с. Поэтому: будим сервис проактивно при
 // каждом запросе (пинг /health стартует контейнер уже в t=0, а не после
 // 15с RPC-таймаута), а при таймауте ждём пробуждения (poll /health)
 // и повторяем RPC — один запрос возвращает данные вместо 503.
@@ -28,6 +28,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 const HEALTH_POLL_INTERVAL_MS = 3_000;
 const HEALTH_WAIT_BUDGET_MS = 60_000;
 const HEALTH_FETCH_TIMEOUT_MS = 8_000;
+// Долгий удерживаемый wake-запрос: браузер будит спящий сервис тем, что ДЕРЖИТ
+// соединение 15–60с. Короткие abort-пинги могут не доводить пробуждение
+// до конца, поэтому проактивный пинг не обрываем до 60с (fire-and-forget).
+const WAKE_HOLD_TIMEOUT_MS = 60_000;
 
 // Принимаем и `https://xxx.onrender.com`, и `.../health` целиком.
 function resolveHealthUrl(raw: string | undefined): string | null {
@@ -53,7 +57,14 @@ export class NotificationsController {
     @Inject('NOTIFICATIONS_SERVICE')
     private readonly notificationsClient: ClientProxy,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    // Одна строка в логах старта — сразу видно, куда gateway будит сервис,
+    // без ожидания холодного запроса.
+    const url = this.resolveNotificationsHealthUrl();
+    this.logger.log(
+      `Автопробуждение notifications-service: ${url ?? 'НЕ ЗАДАНО (нет NOTIFICATIONS_SERVICE_HEALTH_URL)'}`,
+    );
+  }
 
   private async sendNotificationsRpc<TResult>(
     pattern: string,
@@ -112,7 +123,9 @@ export class NotificationsController {
     }
     const startedAt = Date.now();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), HEALTH_FETCH_TIMEOUT_MS);
+    // Держим соединение до WAKE_HOLD_TIMEOUT_MS, как браузер: спящий Render
+    // доводит пробуждение до конца, пока клиент ждёт.
+    const timer = setTimeout(() => controller.abort(), WAKE_HOLD_TIMEOUT_MS);
     fetch(url, { signal: controller.signal })
       .then((res) => {
         this.logger.log(
