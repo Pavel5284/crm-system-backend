@@ -54,7 +54,7 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: NOTIFICATIONS_SERVICE_HEALTH_URL
-        sync: false # для автопробуждения: https://crm-notifications-service.onrender.com
+        value: 'https://crm-notifications-service.onrender.com' # автопробуждение free-плана; в Dashboard можно переопределить
 
   # ──────────────────────────────────────────────────────────────
   # 2. Tasks Service - микро-сервис задач (слушает RabbitMQ очередь tasks)
