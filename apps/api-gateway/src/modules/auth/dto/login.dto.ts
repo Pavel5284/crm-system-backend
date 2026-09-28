@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsString, Matches, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 const NormalizeEmail = () =>
@@ -19,5 +19,9 @@ export class LoginDto {
   // Без MinLength (не раскрываем политику), но с верхним лимитом:
   // иначе гигантский пароль уходит в argon2 и кладет CPU.
   @MaxLength(128)
+  // Только печатный ASCII: латиница, цифры и символы.
+  @Matches(/^[ -~]*$/, {
+    message: 'Используйте только английские буквы, цифры и символы',
+  })
   password: string;
 }

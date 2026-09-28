@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -13,6 +14,8 @@ export class UpdateCustomerDto {
   @IsString()
   @MinLength(1)
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Недопустимые символы в имени' })
   name?: string;
 
   @ApiPropertyOptional({ example: 'client@example.com' })
@@ -24,12 +27,16 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Неверный формат телефона' })
   phone?: string | null;
 
   @ApiPropertyOptional({ example: 'Иван Петров' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Недопустимые символы в имени' })
   contactPerson?: string | null;
 
   // avatar — отдельный эндпоинт POST/DELETE /customers/:id/avatar
@@ -38,5 +45,9 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message: 'Недопустимые символы в источнике',
+  })
   fromSource?: string | null;
 }

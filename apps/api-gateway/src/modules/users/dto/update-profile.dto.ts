@@ -6,12 +6,18 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Недопустимые символы в имени' })
   name?: string;
 
   @ApiPropertyOptional({ example: 'Product Manager' })
   @IsOptional()
   @IsString()
   @MaxLength(100)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message: 'Недопустимые символы в должности',
+  })
   position?: string;
 
   // avatar теперь отдельным эндпоинтом PATCH /users/profile/avatar
