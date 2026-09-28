@@ -7,7 +7,10 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(100)
   // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
-  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Недопустимые символы в имени' })
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в имени. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   name?: string;
 
   @ApiPropertyOptional({ example: 'Product Manager' })
@@ -16,7 +19,8 @@ export class UpdateProfileDto {
   @MaxLength(100)
   // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
   @Matches(/^[^\x00-\x1F\x7F]*$/, {
-    message: 'Недопустимые символы в должности',
+    message:
+      'Недопустимые символы в должности. Допустимы буквы, цифры, пробелы и знаки препинания',
   })
   position?: string;
 

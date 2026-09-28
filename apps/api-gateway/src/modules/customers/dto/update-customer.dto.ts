@@ -15,7 +15,10 @@ export class UpdateCustomerDto {
   @MinLength(1)
   @MaxLength(200)
   // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
-  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Недопустимые символы в имени' })
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в имени. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   name?: string;
 
   @ApiPropertyOptional({ example: 'client@example.com' })
@@ -36,7 +39,10 @@ export class UpdateCustomerDto {
   @IsString()
   @MaxLength(200)
   // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
-  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Недопустимые символы в имени' })
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в имени. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   contactPerson?: string | null;
 
   // avatar — отдельный эндпоинт POST/DELETE /customers/:id/avatar
@@ -47,7 +53,8 @@ export class UpdateCustomerDto {
   @MaxLength(200)
   // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
   @Matches(/^[^\x00-\x1F\x7F]*$/, {
-    message: 'Недопустимые символы в источнике',
+    message:
+      'Недопустимые символы в источнике. Допустимы буквы, цифры, пробелы и знаки препинания',
   })
   fromSource?: string | null;
 }

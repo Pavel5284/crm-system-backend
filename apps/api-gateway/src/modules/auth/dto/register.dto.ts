@@ -46,7 +46,10 @@ export class RegisterDto {
   // Без управляющих символов: переносы строк и NUL-байты в однострочном
   // имени ломают логи и хранилище.
   // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
-  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Недопустимые символы в имени' })
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в имени. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   name: string;
 
   @ApiPropertyOptional({

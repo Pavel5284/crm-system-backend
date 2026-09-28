@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  Matches,
   Min,
   MinLength,
   ValidateNested,
@@ -34,6 +35,11 @@ export class NewCustomerDto {
   @ApiProperty({ example: 'ООО Ромашка' })
   @IsString()
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в имени. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   name: string;
 
   @ApiProperty({ example: 'client@example.com' })
@@ -44,18 +50,30 @@ export class NewCustomerDto {
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, { message: 'Неверный формат телефона' })
   phone?: string;
 
   @ApiPropertyOptional({ example: 'Иван Петров' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в имени. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   contactPerson?: string;
 
   @ApiPropertyOptional({ example: 'site' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в источнике. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   fromSource?: string;
 }
 
@@ -63,6 +81,11 @@ export class CreateDealDto {
   @ApiProperty({ example: 'Поставка оборудования' })
   @IsString()
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message:
+      'Недопустимые символы в названии. Допустимы буквы, цифры, пробелы и знаки препинания',
+  })
   name: string;
 
   @ApiProperty({ example: 'Поставка 10 насосов, монтаж и пусконаладка' })
