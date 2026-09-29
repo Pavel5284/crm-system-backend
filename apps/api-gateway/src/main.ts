@@ -10,6 +10,7 @@ import { QUEUES, parseCorsOrigins } from '@app/shared';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { RejectNullBytesInterceptor } from './common/interceptors/reject-null-bytes.interceptor';
 import { Logger } from 'nestjs-pino';
 
 async function bootstrap() {
@@ -49,6 +50,7 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(
+    new RejectNullBytesInterceptor(),
     new TransformInterceptor(),
     new ClassSerializerInterceptor(app.get(Reflector)),
   );

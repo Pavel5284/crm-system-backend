@@ -23,6 +23,7 @@ import {
 import { QUEUES } from '@app/shared';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
 import { TransformInterceptor } from '../../src/common/interceptors/transform.interceptor';
+import { RejectNullBytesInterceptor } from '../../src/common/interceptors/reject-null-bytes.interceptor';
 
 export interface E2eInfraOptions {
   notifications?: boolean;
@@ -109,6 +110,7 @@ export async function startE2eInfra(
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(
+    new RejectNullBytesInterceptor(),
     new TransformInterceptor(),
     new ClassSerializerInterceptor(app.get(Reflector)),
   );

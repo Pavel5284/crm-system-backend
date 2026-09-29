@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
 } from 'class-validator';
 import { TaskPriority } from '@prisma/client';
@@ -13,6 +14,10 @@ export class CreateTaskDto {
   @ApiProperty({ example: 'Настроить CI' })
   @IsString()
   @MaxLength(200)
+  // eslint-disable-next-line no-control-regex -- guard намеренно ищет управляющие символы.
+  @Matches(/^[^\x00-\x1F\x7F]*$/, {
+    message: 'Недопустимые символы в названии',
+  })
   title: string;
 
   @ApiPropertyOptional()
