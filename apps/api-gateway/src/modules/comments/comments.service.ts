@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@app/database';
 import { AuthUser } from '@app/shared';
+import { Role } from '@prisma/client';
 import { CreateCommentDto } from './dto/create-comment.dto';
 
 @Injectable()
@@ -39,13 +44,21 @@ export class CommentsService {
     });
   }
 
-  async remove(id: string) {
+  async remove(id: string, requester: AuthUser) {
     const comment = await this.prisma.comment.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
     if (!comment) {
       throw new NotFoundException(`Комментарий ${id} не найден`);
+    }
+    // Чужой комментарий может удалить только ADMIN: без проверки любой
+    // аутентифицированный пользователь (включая TECHNOLOGIST/LOGIST)
+    // мог стереть чужое сообщение.
+    if (comment.userId !== requester.id && requester.role !== Role.ADMIN) {
+      throw new ForbiddenException(
+        'Недостаточно прав для удаления комментария',
+      );
     }
     await this.prisma.comment.delete({ where: { id } });
   }
