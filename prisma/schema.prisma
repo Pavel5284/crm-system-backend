@@ -35,6 +35,31 @@ enum DealPriority {
   HIGH
 }
 
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  SBP
+  OTHER
+}
+
 model User {
   id                            String    @id @default(uuid())
   email                         String    @unique
@@ -66,6 +91,10 @@ model User {
   importedDeals     Deal[]             @relation("ImportedDeals")
   dealStageChanges  DealStageHistory[] @relation("StageChangedBy")
   uploadedDealFiles DealAttachment[]   @relation("UploadedAttachments")
+
+  createdOrders      Order[]               @relation("CreatedOrders")
+  orderStatusChanges OrderStatusHistory[]  @relation("OrderStatusChangedBy")
+  createdPayments    Payment[]             @relation("CreatedPayments")
 
   @@map("users")
 }
@@ -120,6 +149,8 @@ model Customer {
 
   deals Deal[]
 
+  orders Order[]
+
   @@map("customers")
 }
 
@@ -157,6 +188,8 @@ model Deal {
   items       DealItem[]
   stageHistory DealStageHistory[]
   attachments  DealAttachment[]
+
+  orders Order[]
 
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
@@ -276,4 +309,83 @@ model DirectMessage {
   @@index([receiverId])
   @@index([createdAt])
   @@map("direct_messages")
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  // Человекочитаемый номер счёта/заказа для печати. Autoincrement —
+// последовательные номера без гонок на уровне БД.
+  number      Int         @unique @default(autoincrement())
+  dealId      String?
+  deal        Deal?       @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  createdById String?
+  createdBy   User?       @relation("CreatedOrders", fields: [createdById], references: [id], onDelete: SetNull)
+  total       Decimal     @db.Decimal(12, 2)
+  status      OrderStatus @default(DRAFT)
+  comment     String?
+  items       OrderItem[]
+  payments    Payment[]
+  statusHistory OrderStatusHistory[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([dealId])
+  @@index([customerId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  Decimal  @default(1) @db.Decimal(12, 3)
+  unit      String?
+  // Цена за единицу. Итог заказа = sum(price * quantity),
+  // если позиции переданы; иначе берётся явный total.
+  price     Decimal  @default(0) @db.Decimal(12, 2)
+  spec      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id              String      @id @default(uuid())
+  orderId         String
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus      OrderStatus?
+  toStatus        OrderStatus
+  changedByUserId String?
+  changedBy       User?       @relation("OrderStatusChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+  comment         String?
+  createdAt       DateTime    @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("order_status_history")
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount      Decimal       @db.Decimal(12, 2)
+  method      PaymentMethod @default(TRANSFER)
+  status      PaymentStatus @default(PENDING)
+  comment     String?
+  paidAt      DateTime?
+  createdById String?
+  createdBy   User?         @relation("CreatedPayments", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payments")
 }

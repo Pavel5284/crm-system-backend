@@ -2,6 +2,8 @@ export * from "./constants/queues.constants";
 export * from "./constants/patterns.constants";
 export * from "./constants/deal-workflow.constants";
 export * from "./constants/deal-permissions.constants";
+export * from "./constants/billing-permissions.constants";
+export * from "./constants/billing-workflow.constants";
 export * from "./types/auth-user.interface";
 export * from "./interfaces/task-messages.interface";
 export * from "./interfaces/deal-messages.interface";
