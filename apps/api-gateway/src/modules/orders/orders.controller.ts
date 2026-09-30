@@ -12,12 +12,12 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { OrderStatus } from '@prisma/client';
 import * as shared from '@app/shared';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { ChangeOrderStatusDto } from './dto/change-order-status.dto';
+import { FindOrdersQueryDto } from './dto/find-orders.query';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -27,12 +27,8 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
-  findAll(
-    @Query('status') status?: OrderStatus,
-    @Query('customerId') customerId?: string,
-    @Query('dealId') dealId?: string,
-  ) {
-    return this.ordersService.findAll({ status, customerId, dealId });
+  findAll(@Query() query: FindOrdersQueryDto) {
+    return this.ordersService.findAll(query);
   }
 
   @Get(':id')

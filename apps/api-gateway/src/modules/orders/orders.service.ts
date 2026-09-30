@@ -119,7 +119,17 @@ export class OrdersService {
         deal: { select: DEAL_SELECT },
         createdBy: { select: { id: true, name: true, email: true } },
         items: { orderBy: { createdAt: 'asc' } },
-        payments: { orderBy: { createdAt: 'desc' } },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            statusHistory: {
+              orderBy: { createdAt: 'asc' },
+              include: {
+                changedBy: { select: { id: true, name: true, email: true } },
+              },
+            },
+          },
+        },
         statusHistory: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -275,64 +285,72 @@ export class OrdersService {
   }
 
   async update(id: string, dto: UpdateOrderDto) {
-    const existing = await this.prisma.order.findUnique({
-      where: { id },
-      include: { payments: { select: { amount: true, status: true } } },
-    });
-    if (!existing) {
-      throw new NotFoundException(`Заказ ${id} не найден`);
-    }
-    if (
-      existing.status !== OrderStatus.DRAFT &&
-      existing.status !== OrderStatus.CONFIRMED
-    ) {
-      throw new BadRequestException(
-        `Заказ в статусе "${existing.status}" нельзя редактировать (только DRAFT/CONFIRMED)`,
-      );
-    }
-    const paid = existing.payments
-      .filter((p) => p.status === 'SUCCEEDED')
-      .reduce((sum, p) => sum + Number(p.amount), 0);
-    const nextTotal =
-      dto.total !== undefined
-        ? dto.total
-        : dto.items
-          ? round2(itemsTotal(dto.items))
-          : Number(existing.total);
-    if (nextTotal < 0) {
-      throw new BadRequestException('Сумма заказа не может быть отрицательной');
-    }
-    if (round2(nextTotal - paid) < 0) {
-      throw new BadRequestException(
-        `Сумма заказа (${nextTotal}) меньше уже оплаченного (${paid})`,
-      );
-    }
+    // Проверка «total не ниже оплаченного» и запись — в одной транзакции
+    // под FOR UPDATE: иначе параллельная оплата между чтением и записью
+    // оставит заказ с total меньше paid.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${id} FOR UPDATE`;
+      const existing = await tx.order.findUnique({
+        where: { id },
+        include: { payments: { select: { amount: true, status: true } } },
+      });
+      if (!existing) {
+        throw new NotFoundException(`Заказ ${id} не найден`);
+      }
+      if (
+        existing.status !== OrderStatus.DRAFT &&
+        existing.status !== OrderStatus.CONFIRMED
+      ) {
+        throw new BadRequestException(
+          `Заказ в статусе "${existing.status}" нельзя редактировать (только DRAFT/CONFIRMED)`,
+        );
+      }
+      const paid = existing.payments
+        .filter((p) => p.status === 'SUCCEEDED')
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const nextTotal =
+        dto.total !== undefined
+          ? dto.total
+          : dto.items
+            ? round2(itemsTotal(dto.items))
+            : Number(existing.total);
+      if (nextTotal < 0) {
+        throw new BadRequestException(
+          'Сумма заказа не может быть отрицательной',
+        );
+      }
+      if (round2(nextTotal - paid) < 0) {
+        throw new BadRequestException(
+          `Сумма заказа (${nextTotal}) меньше уже оплаченного (${paid})`,
+        );
+      }
 
-    const updated = await this.prisma.order.update({
-      where: { id },
-      data: {
-        comment: dto.comment,
-        total: dto.total !== undefined || dto.items ? nextTotal : undefined,
-        ...(dto.items
-          ? {
-              items: {
-                deleteMany: {},
-                create: dto.items.map((item) => ({
-                  name: item.name,
-                  quantity: item.quantity,
-                  unit: item.unit ?? undefined,
-                  price: item.price,
-                  spec: item.spec ?? undefined,
-                })),
-              },
-            }
-          : {}),
-      },
-      include: {
-        customer: { select: { id: true, name: true } },
-        deal: { select: { id: true, name: true } },
-        payments: { select: { amount: true, status: true } },
-      },
+      return tx.order.update({
+        where: { id },
+        data: {
+          comment: dto.comment,
+          total: dto.total !== undefined || dto.items ? nextTotal : undefined,
+          ...(dto.items
+            ? {
+                items: {
+                  deleteMany: {},
+                  create: dto.items.map((item) => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    unit: item.unit ?? undefined,
+                    price: item.price,
+                    spec: item.spec ?? undefined,
+                  })),
+                },
+              }
+            : {}),
+        },
+        include: {
+          customer: { select: { id: true, name: true } },
+          deal: { select: { id: true, name: true } },
+          payments: { select: { amount: true, status: true } },
+        },
+      });
     });
     return this.toListDto(updated);
   }

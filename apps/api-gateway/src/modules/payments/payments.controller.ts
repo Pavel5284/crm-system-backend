@@ -12,11 +12,12 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { PaymentStatus } from '@prisma/client';
 import * as shared from '@app/shared';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ChangePaymentStatusDto } from './dto/change-payment-status.dto';
+import { FindPaymentsQueryDto } from './dto/find-payments.query';
+import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -26,11 +27,8 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get()
-  findAll(
-    @Query('orderId') orderId?: string,
-    @Query('status') status?: PaymentStatus,
-  ) {
-    return this.paymentsService.findAll({ orderId, status });
+  findAll(@Query() query: FindPaymentsQueryDto) {
+    return this.paymentsService.findAll(query);
   }
 
   @Get(':id')
@@ -58,10 +56,10 @@ export class PaymentsController {
   @Roles(...shared.PAYMENT_PERMISSIONS.PAYMENTS_REFUND)
   refund(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { comment?: string } = {},
+    @Body() dto: RefundPaymentDto,
     @CurrentUser() user: shared.AuthUser,
   ) {
-    return this.paymentsService.refund(id, user.id, body.comment);
+    return this.paymentsService.refund(id, user.id, dto.comment);
   }
 
   @Delete(':id')

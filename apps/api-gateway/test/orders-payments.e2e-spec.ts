@@ -236,4 +236,116 @@ describe('Orders + Payments API (e2e)', () => {
       .send({ status: 'CANCELLED' })
       .expect(200);
   });
+
+  it('мусор в query-фильтрах даёт 400, а не 500', async () => {
+    await request(httpServer)
+      .get('/api/orders?status=GARBAGE')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(400);
+    await request(httpServer)
+      .get('/api/orders?customerId=not-a-uuid')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(400);
+    await request(httpServer)
+      .get('/api/payments?orderId=not-a-uuid')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(400);
+    await request(httpServer)
+      .get('/api/payments?status=GARBAGE')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(400);
+  });
+
+  it('аудит платежа: история фиксирует кто и что менял', async () => {
+    const createdOrder = await request(httpServer)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ customerId, total: 50000 })
+      .expect(201);
+    const auditOrderId = (createdOrder.body as { data: { id: string } }).data
+      .id;
+
+    const createdPayment = await request(httpServer)
+      .post('/api/payments')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ orderId: auditOrderId, amount: 50000 })
+      .expect(201);
+    const auditPaymentId = (createdPayment.body as { data: { id: string } })
+      .data.id;
+
+    await request(httpServer)
+      .patch(`/api/payments/${auditPaymentId}/status`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ status: 'SUCCEEDED', comment: 'Деньги пришли' })
+      .expect(200);
+
+    await request(httpServer)
+      .post(`/api/payments/${auditPaymentId}/refund`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ comment: 'Возврат клиенту' })
+      .expect(201);
+
+    const res = await request(httpServer)
+      .get(`/api/payments/${auditPaymentId}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200);
+    const history = (
+      res.body as {
+        data: {
+          statusHistory: Array<{
+            fromStatus: string | null;
+            toStatus: string;
+            changedByUserId: string | null;
+            changedBy: { email: string } | null;
+            comment: string | null;
+          }>;
+        };
+      }
+    ).data.statusHistory;
+    expect(history).toHaveLength(3);
+    expect(history[0]?.fromStatus).toBeNull();
+    expect(history[0]?.toStatus).toBe('PENDING');
+    expect(history[1]).toMatchObject({
+      fromStatus: 'PENDING',
+      toStatus: 'SUCCEEDED',
+      comment: 'Деньги пришли',
+    });
+    expect(history[1]?.changedBy?.email).toBe('billing-user@example.com');
+    expect(history[2]).toMatchObject({
+      fromStatus: 'SUCCEEDED',
+      toStatus: 'REFUNDED',
+      comment: 'Возврат клиенту',
+    });
+    expect(history[2]?.changedBy?.email).toBe('billing-admin@example.com');
+  });
+
+  it('параллельные оплаты не переплачивают (FOR UPDATE)', async () => {
+    const created = await request(httpServer)
+      .post('/api/orders')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ customerId, total: 10000 })
+      .expect(201);
+    const raceOrderId = (created.body as { data: { id: string } }).data.id;
+
+    const results = await Promise.all([
+      request(httpServer)
+        .post('/api/payments')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ orderId: raceOrderId, amount: 10000, status: 'SUCCEEDED' }),
+      request(httpServer)
+        .post('/api/payments')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ orderId: raceOrderId, amount: 10000, status: 'SUCCEEDED' }),
+    ]);
+    const codes = results.map((r) => r.status).sort();
+    expect(codes).toEqual([201, 400]);
+
+    const order = await request(httpServer)
+      .get(`/api/orders/${raceOrderId}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200);
+    const data = order.body as { data: { paid: number; status: string } };
+    expect(data.data.paid).toBe(10000);
+    expect(data.data.status).toBe('PAID');
+  });
 });

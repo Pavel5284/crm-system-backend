@@ -95,6 +95,7 @@ model User {
   createdOrders      Order[]               @relation("CreatedOrders")
   orderStatusChanges OrderStatusHistory[]  @relation("OrderStatusChangedBy")
   createdPayments    Payment[]             @relation("CreatedPayments")
+  paymentStatusChanges PaymentStatusHistory[] @relation("PaymentStatusChangedBy")
 
   @@map("users")
 }
@@ -382,10 +383,27 @@ model Payment {
   paidAt      DateTime?
   createdById String?
   createdBy   User?         @relation("CreatedPayments", fields: [createdById], references: [id], onDelete: SetNull)
+  statusHistory PaymentStatusHistory[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   @@index([orderId])
   @@index([status])
   @@map("payments")
+}
+
+model PaymentStatusHistory {
+  id              String        @id @default(uuid())
+  paymentId       String
+  payment         Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  fromStatus      PaymentStatus?
+  toStatus        PaymentStatus
+  changedByUserId String?
+  changedBy       User?         @relation("PaymentStatusChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+  comment         String?
+  createdAt       DateTime      @default(now())
+
+  @@index([paymentId])
+  @@index([createdAt])
+  @@map("payment_status_history")
 }

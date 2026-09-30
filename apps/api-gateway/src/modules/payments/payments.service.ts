@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@app/database';
 import { PAYMENT_STATUS_TRANSITIONS } from '@app/shared';
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ChangePaymentStatusDto } from './dto/change-payment-status.dto';
 import { OrdersService } from '../orders/orders.service';
@@ -77,16 +77,27 @@ export class PaymentsService {
             customer: { select: { id: true, name: true } },
           },
         },
+        createdBy: { select: { id: true, name: true, email: true } },
+        statusHistory: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            changedBy: { select: { id: true, name: true, email: true } },
+          },
+        },
       },
     });
     if (!payment) {
       throw new NotFoundException(`Платёж ${id} не найден`);
     }
-    return this.toDto(payment);
+    return { ...this.toDto(payment), statusHistory: payment.statusHistory };
   }
 
-  private async orderPaidSum(orderId: string, excludePaymentId?: string) {
-    const payments = await this.prisma.payment.findMany({
+  private async orderPaidSumInTransaction(
+    transaction: Prisma.TransactionClient,
+    orderId: string,
+    excludePaymentId?: string,
+  ) {
+    const payments = await transaction.payment.findMany({
       where: {
         orderId,
         status: PaymentStatus.SUCCEEDED,
@@ -95,6 +106,19 @@ export class PaymentsService {
       select: { amount: true },
     });
     return round2(payments.reduce((sum, p) => sum + Number(p.amount), 0));
+  }
+
+  // Блокировка строки заказа на время проверки остатка и проводки.
+  // Без неё два параллельных SUCCEEDED-платежа проходят проверку остатка
+  // одновременно и суммарно переплачивают (классический double-spend).
+  private lockOrder(transaction: Prisma.TransactionClient, orderId: string) {
+    return transaction.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+  }
+
+  private overpayError(amount: number, total: number, paid: number) {
+    return new BadRequestException(
+      `Платёж ${amount} превышает остаток ${round2(total - paid)} по заказу`,
+    );
   }
 
   async create(dto: CreatePaymentDto, actorId?: string) {
@@ -122,28 +146,67 @@ export class PaymentsService {
       );
     }
     if (initialStatus === PaymentStatus.SUCCEEDED) {
-      const paid = await this.orderPaidSum(dto.orderId);
-      if (round2(paid + dto.amount - Number(order.total)) > 0) {
-        throw new BadRequestException(
-          `Платёж ${dto.amount} превышает остаток ${round2(Number(order.total) - paid)} по заказу`,
+      const payment = await this.prisma.$transaction(async (transaction) => {
+        await this.lockOrder(transaction, dto.orderId);
+        const total = Number(order.total);
+        const paid = await this.orderPaidSumInTransaction(
+          transaction,
+          dto.orderId,
         );
-      }
+        if (round2(paid + dto.amount - total) > 0) {
+          throw this.overpayError(dto.amount, total, paid);
+        }
+        const created = await transaction.payment.create({
+          data: {
+            orderId: dto.orderId,
+            amount: dto.amount,
+            method: dto.method ?? 'TRANSFER',
+            status: PaymentStatus.SUCCEEDED,
+            comment: dto.comment,
+            paidAt: new Date(),
+            createdById: actorId,
+          },
+        });
+        await transaction.paymentStatusHistory.create({
+          data: {
+            paymentId: created.id,
+            fromStatus: null,
+            toStatus: PaymentStatus.SUCCEEDED,
+            changedByUserId: actorId,
+            comment: dto.comment ?? 'Платёж создан и подтверждён',
+          },
+        });
+        return created;
+      });
+      await this.ordersService.recalcStatus(dto.orderId, actorId);
+      return this.toDto(payment);
     }
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        orderId: dto.orderId,
-        amount: dto.amount,
-        method: dto.method ?? 'TRANSFER',
-        status: initialStatus,
-        comment: dto.comment,
-        paidAt: initialStatus === PaymentStatus.SUCCEEDED ? new Date() : null,
-        createdById: actorId,
-      },
+    // Дальше — только PENDING: ветка SUCCEEDED вернулась выше.
+    // Создание платежа и первая запись аудита — атомарно.
+    const payment = await this.prisma.$transaction(async (transaction) => {
+      const created = await transaction.payment.create({
+        data: {
+          orderId: dto.orderId,
+          amount: dto.amount,
+          method: dto.method ?? 'TRANSFER',
+          status: PaymentStatus.PENDING,
+          comment: dto.comment,
+          paidAt: null,
+          createdById: actorId,
+        },
+      });
+      await transaction.paymentStatusHistory.create({
+        data: {
+          paymentId: created.id,
+          fromStatus: null,
+          toStatus: PaymentStatus.PENDING,
+          changedByUserId: actorId,
+          comment: dto.comment ?? 'Платёж создан',
+        },
+      });
+      return created;
     });
-    if (initialStatus === PaymentStatus.SUCCEEDED) {
-      await this.ordersService.recalcStatus(dto.orderId, actorId);
-    }
     return this.toDto(payment);
   }
 
@@ -169,37 +232,85 @@ export class PaymentsService {
       );
     }
     if (dto.status === PaymentStatus.SUCCEEDED) {
-      if (
-        existing.order.status === OrderStatus.CANCELLED ||
-        existing.order.status === OrderStatus.REFUNDED
-      ) {
-        throw new BadRequestException(
-          `Нельзя подтверждать оплату по заказу в статусе "${existing.order.status}"`,
+      const updated = await this.prisma.$transaction(async (transaction) => {
+        await this.lockOrder(transaction, existing.orderId);
+        const current = await transaction.payment.findUnique({
+          where: { id },
+          include: { order: true },
+        });
+        if (!current) {
+          throw new NotFoundException(`Платёж ${id} не найден`);
+        }
+        // Платёж могли подтвердить/вернуть параллельным запросом —
+        // перепроверяем переход уже под блокировкой.
+        const freshAllowed = PAYMENT_STATUS_TRANSITIONS[current.status] ?? [];
+        if (!freshAllowed.includes(PaymentStatus.SUCCEEDED)) {
+          throw new BadRequestException(
+            `Переход платежа из "${current.status}" в "${PaymentStatus.SUCCEEDED}" запрещён`,
+          );
+        }
+        if (
+          current.order.status === OrderStatus.CANCELLED ||
+          current.order.status === OrderStatus.REFUNDED
+        ) {
+          throw new BadRequestException(
+            `Нельзя подтверждать оплату по заказу в статусе "${current.order.status}"`,
+          );
+        }
+        const total = Number(current.order.total);
+        const paid = await this.orderPaidSumInTransaction(
+          transaction,
+          current.orderId,
+          current.id,
         );
-      }
-      const paid = await this.orderPaidSum(existing.orderId, existing.id);
-      if (
-        round2(paid + Number(existing.amount) - Number(existing.order.total)) >
-        0
-      ) {
-        throw new BadRequestException(
-          `Платёж ${Number(existing.amount)} превышает остаток ${round2(Number(existing.order.total) - paid)} по заказу`,
-        );
-      }
+        const amount = Number(current.amount);
+        if (round2(paid + amount - total) > 0) {
+          throw this.overpayError(amount, total, paid);
+        }
+        const updated = await transaction.payment.update({
+          where: { id },
+          data: {
+            status: PaymentStatus.SUCCEEDED,
+            comment: dto.comment ?? current.comment,
+            paidAt: current.paidAt ?? new Date(),
+          },
+        });
+        await transaction.paymentStatusHistory.create({
+          data: {
+            paymentId: id,
+            fromStatus: current.status,
+            toStatus: PaymentStatus.SUCCEEDED,
+            changedByUserId: actorId,
+            comment: dto.comment ?? null,
+          },
+        });
+        return updated;
+      });
+      await this.ordersService.recalcStatus(existing.orderId, actorId);
+      return this.toDto(updated);
     }
 
-    const updated = await this.prisma.payment.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        comment: dto.comment ?? existing.comment,
-        paidAt:
-          dto.status === PaymentStatus.SUCCEEDED
-            ? (existing.paidAt ?? new Date())
-            : dto.status === PaymentStatus.PENDING
-              ? null
-              : existing.paidAt,
-      },
+    // Остальные переходы денег не добавляют — блокировка строки не нужна,
+    // но запись платежа и запись аудита пишем атомарно.
+    const updated = await this.prisma.$transaction(async (transaction) => {
+      const updatedPayment = await transaction.payment.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          comment: dto.comment ?? existing.comment,
+          paidAt: dto.status === PaymentStatus.PENDING ? null : existing.paidAt,
+        },
+      });
+      await transaction.paymentStatusHistory.create({
+        data: {
+          paymentId: id,
+          fromStatus: existing.status,
+          toStatus: dto.status,
+          changedByUserId: actorId,
+          comment: dto.comment ?? null,
+        },
+      });
+      return updatedPayment;
     });
     await this.ordersService.recalcStatus(existing.orderId, actorId);
     return this.toDto(updated);
