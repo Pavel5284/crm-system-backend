@@ -46,6 +46,44 @@ describe('DTO injection guards', () => {
     await expect(errorsOn(dto)).resolves.toEqual([]);
   });
 
+  it('register: кириллический email отклоняется', async () => {
+    const dto = Object.assign(new RegisterDto(), {
+      email: 'тест@example.com',
+      password: 'password123',
+      name: 'Alice',
+    });
+    const errs = await errorsOn(dto);
+    expect(errs.some((e) => e.startsWith('email:'))).toBe(true);
+  });
+
+  it('register: кириллический домен отклоняется', async () => {
+    const dto = Object.assign(new RegisterDto(), {
+      email: 'test@пример.рф',
+      password: 'password123',
+      name: 'Alice',
+    });
+    const errs = await errorsOn(dto);
+    expect(errs.some((e) => e.startsWith('email:'))).toBe(true);
+  });
+
+  it('register: латиница в email проходит', async () => {
+    const dto = Object.assign(new RegisterDto(), {
+      email: 'Alice.Test+tag@sub.example.com',
+      password: 'password123',
+      name: 'Alice',
+    });
+    await expect(errorsOn(dto)).resolves.toEqual([]);
+  });
+
+  it('login: кириллический email отклоняется', async () => {
+    const dto = Object.assign(new LoginDto(), {
+      email: 'тест@example.com',
+      password: 'P@ssw0rd!',
+    });
+    const errs = await errorsOn(dto);
+    expect(errs.some((e) => e.startsWith('email:'))).toBe(true);
+  });
+
   it('login: кириллический пароль отклоняется', async () => {
     const dto = Object.assign(new LoginDto(), {
       email: 'alice@example.com',

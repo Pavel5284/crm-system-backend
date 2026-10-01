@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, Matches, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { ASCII_EMAIL_MESSAGE, ASCII_EMAIL_PATTERN } from '@app/shared';
 
 const NormalizeEmail = () =>
   Transform(({ value }: { value: unknown }) =>
@@ -11,6 +12,7 @@ export class LoginDto {
   @ApiProperty({ example: 'alice@example.com' })
   @NormalizeEmail()
   @IsEmail()
+  @Matches(ASCII_EMAIL_PATTERN, { message: ASCII_EMAIL_MESSAGE })
   @MaxLength(254)
   email: string;
 

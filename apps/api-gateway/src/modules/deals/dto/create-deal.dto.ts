@@ -15,7 +15,12 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { DealPriority } from '@prisma/client';
-import { DEAL_STAGES, DealStage } from '@app/shared';
+import {
+  ASCII_EMAIL_MESSAGE,
+  ASCII_EMAIL_PATTERN,
+  DEAL_STAGES,
+  DealStage,
+} from '@app/shared';
 
 export const DEAL_STATUSES = DEAL_STAGES;
 
@@ -44,6 +49,7 @@ export class NewCustomerDto {
 
   @ApiProperty({ example: 'client@example.com' })
   @IsEmail()
+  @Matches(ASCII_EMAIL_PATTERN, { message: ASCII_EMAIL_MESSAGE })
   email: string;
 
   @ApiPropertyOptional({ example: '+7 900 000-00-00' })

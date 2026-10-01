@@ -7,6 +7,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { ASCII_EMAIL_MESSAGE, ASCII_EMAIL_PATTERN } from '@app/shared';
 
 export class UpdateCustomerDto {
   @ApiPropertyOptional({ example: 'ООО Ромашка' })
@@ -24,6 +25,7 @@ export class UpdateCustomerDto {
   @ApiPropertyOptional({ example: 'client@example.com' })
   @IsOptional()
   @IsEmail()
+  @Matches(ASCII_EMAIL_PATTERN, { message: ASCII_EMAIL_MESSAGE })
   email?: string;
 
   @ApiPropertyOptional({ example: '+7 900 000-00-00' })

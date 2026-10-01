@@ -8,6 +8,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { ASCII_EMAIL_MESSAGE, ASCII_EMAIL_PATTERN } from '@app/shared';
 
 // Email храним в нижнем регистре без пробелов: Test@x.com и test@x.com —
 // один аккаунт. Работает при transform: true в global ValidationPipe.
@@ -25,6 +26,7 @@ export class RegisterDto {
   @ApiProperty({ example: 'alice@example.com' })
   @NormalizeEmail()
   @IsEmail()
+  @Matches(ASCII_EMAIL_PATTERN, { message: ASCII_EMAIL_MESSAGE })
   @MaxLength(254)
   email: string;
 
