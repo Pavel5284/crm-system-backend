@@ -36,7 +36,7 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
   const result = envSchema.safeParse(config);
   if (!result.success) {
     throw new Error(
-      `❌ Некорректная конфигурация окружения api-gateway:\n${result.error.toString()}`,
+      `[api-gateway] плохая конфигурация окружения:\n${result.error.toString()}`,
     );
   }
   return result.data;

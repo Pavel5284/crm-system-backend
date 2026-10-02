@@ -36,7 +36,7 @@ export class AuthService {
     private readonly captchaService: CaptchaService,
   ) {}
 
-  /** Лимиты блокировки аккаунта, переопределяются через env. */
+  // Лимиты блокировки можно крутить через env (дефолт 5 попыток / 15 мин).
   private getLoginPolicy(): { maxAttempts: number; lockMinutes: number } {
     const maxAttempts =
       Number(this.configService.get<number>('LOGIN_MAX_ATTEMPTS')) || 5;
@@ -45,7 +45,8 @@ export class AuthService {
     return { maxAttempts, lockMinutes };
   }
 
-  /** Сжигает ~столько же времени, сколько настоящий verify. */
+  // Жжем примерно столько же времени, сколько занимает настоящий verify,
+  // иначе по скорости ответа видно, есть ли такой email в базе.
   private async burnTiming(password: string): Promise<void> {
     try {
       await argon2.verify(DUMMY_PASSWORD_HASH, password);
@@ -166,8 +167,9 @@ export class AuthService {
     return { message: 'Email успешно подтверждён' };
   }
 
-  async resendVerification(email: string) {
-    // Сырой @Body('email') без DTO: нормализуем вручную.
+  // @Body('email') без DTO прилетает сырым (в рантайме там может быть что
+  // угодно), поэтому принимаем unknown и нормализуем вручную.
+  async resendVerification(email: unknown) {
     const normalized =
       typeof email === 'string' ? email.trim().toLowerCase() : '';
     if (!normalized) throw new BadRequestException('Email не указан');
@@ -300,7 +302,8 @@ export class AuthService {
     return tokens;
   }
 
-  /** Оставшиеся минуты блокировки текстом: 1 минуту, 3 минуты, 15 минут. */
+  // "3 минуты", "1 минуту" — склоняем руками, i18n сюда тащить лень.
+  // TODO: когда будет нормальная локализация, выкинуть этот хелпер.
   private formatMinutesLeft(lockedUntil: Date): string {
     const minutes = Math.max(
       1,
@@ -317,11 +320,8 @@ export class AuthService {
     return `${minutes} ${word}`;
   }
 
-  /**
-   * Учитывает неудачную попытку входа. По достижении лимита ставит
-   * временную блокировку аккаунта. Ответ на неудачу всегда одинаковый (401),
-   * а вход при активном блоке отвечает честным 429 с оставшимся временем.
-   */
+  // Считает неудачную попытку. Дошли до лимита — лочим аккаунт на lockMinutes.
+  // Неудача снаружи всегда 401, а вход при активном локе — честный 429.
   private async registerFailedAttempt(
     userId: string,
     prevAttempts: number,
@@ -360,7 +360,9 @@ export class AuthService {
     if (!ua) return { device: null, browser: null, os: null };
     let browser: string | null = null;
     let os: string | null = null;
-    let device: string | null = null;
+    // ветки ниже покрывают все случаи (в конце всегда Desktop), так что
+    // начальное значение не нужно.
+    let device: string | null;
 
     if (/Edg\//i.test(ua)) browser = 'Edge';
     else if (/OPR|Opera/i.test(ua)) browser = 'Opera';

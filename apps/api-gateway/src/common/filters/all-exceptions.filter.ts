@@ -19,10 +19,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    // Не-Http исключение (упал код, а не бизнес-ошибка) — наружу отдаем
+    // общее сообщение по-русски, детали только в логах.
     const message =
       exception instanceof HttpException
         ? exception.getResponse()
-        : 'Internal server error';
+        : 'Внутренняя ошибка сервера';
 
     response.status(status).json({
       success: false,

@@ -16,7 +16,7 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
   const result = envSchema.safeParse(config);
   if (!result.success) {
     throw new Error(
-      `❌ Некорректная конфигурация окружения tasks-service:\n${result.error.toString()}`,
+      `[tasks-service] плохая конфигурация окружения:\n${result.error.toString()}`,
     );
   }
   return result.data;

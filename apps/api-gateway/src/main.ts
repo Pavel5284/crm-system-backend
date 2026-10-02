@@ -56,8 +56,9 @@ async function bootstrap() {
   );
   app.useLogger(app.get(Logger));
 
+  // сваггер держим на /api/docs, фронт и тестировщики смотрят там
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Task Manager API')
+    .setTitle('Noname CRM API')
     .setVersion('1.0')
     .build();
   SwaggerModule.setup(

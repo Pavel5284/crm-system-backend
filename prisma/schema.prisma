@@ -315,7 +315,7 @@ model DirectMessage {
 model Order {
   id          String      @id @default(uuid())
   // Человекочитаемый номер счёта/заказа для печати. Autoincrement —
-// последовательные номера без гонок на уровне БД.
+  // последовательные номера без гонок на уровне БД.
   number      Int         @unique @default(autoincrement())
   dealId      String?
   deal        Deal?       @relation(fields: [dealId], references: [id], onDelete: SetNull)

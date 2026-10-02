@@ -2,7 +2,7 @@ import request from 'supertest';
 import { Server } from 'http';
 import { E2eInfra, startE2eInfra } from './helpers/e2e-infra';
 
-describe('Task Manager API (e2e)', () => {
+describe('tasks (e2e)', () => {
   let infra: E2eInfra;
   let httpServer: Server;
 
