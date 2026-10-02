@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -12,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import { Role } from '@prisma/client';
+import { isDemoEmail } from '@app/shared';
 import { PrismaService } from '@app/database';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -45,6 +47,29 @@ export class AuthService {
     return { maxAttempts, lockMinutes };
   }
 
+  // Демо-режим (DEMO_MODE=true): регистрация закрыта, вход/обновление
+  // токенов — только для demo1/demo2/demo3. Остальное API без изменений.
+  private isDemoMode(): boolean {
+    return (
+      process.env.DEMO_MODE === 'true' ||
+      this.configService.get<string>('DEMO_MODE') === 'true'
+    );
+  }
+
+  private assertRegistrationAllowed(): void {
+    if (this.isDemoMode()) {
+      throw new ForbiddenException('Регистрация отключена в демо-режиме');
+    }
+  }
+
+  private assertLoginAllowed(email: unknown): void {
+    if (this.isDemoMode() && !isDemoEmail(email)) {
+      throw new ForbiddenException(
+        'В демо-режиме доступны только демо-аккаунты',
+      );
+    }
+  }
+
   // Жжем примерно столько же времени, сколько занимает настоящий verify,
   // иначе по скорости ответа видно, есть ли такой email в базе.
   private async burnTiming(password: string): Promise<void> {
@@ -70,6 +95,8 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto, meta?: { ip?: string }) {
+    // Демо-режим — до капчи и БД: лишних запросов и сайд-эффектов нет.
+    this.assertRegistrationAllowed();
     // CAPTCHA первой — боты без валидного токена не доходят до БД.
     const captchaOk = await this.captchaService.verify(
       dto.captchaToken,
@@ -170,6 +197,7 @@ export class AuthService {
   // @Body('email') без DTO прилетает сырым (в рантайме там может быть что
   // угодно), поэтому принимаем unknown и нормализуем вручную.
   async resendVerification(email: unknown) {
+    this.assertRegistrationAllowed();
     const normalized =
       typeof email === 'string' ? email.trim().toLowerCase() : '';
     if (!normalized) throw new BadRequestException('Email не указан');
@@ -199,6 +227,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta?: { ip?: string; userAgent?: string }) {
+    this.assertLoginAllowed(dto.email);
     const invalidCredentials = () =>
       new UnauthorizedException('Неверный email или пароль');
 
@@ -387,6 +416,9 @@ export class AuthService {
   async refresh(userId: string, refreshToken: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user?.refreshTokenHash) throw new UnauthorizedException();
+
+    // В демо-режиме чужие refresh-токены (выданные до включения) не продлеваем.
+    this.assertLoginAllowed(user.email);
 
     const valid = await argon2.verify(user.refreshTokenHash, refreshToken);
     if (!valid) throw new UnauthorizedException();

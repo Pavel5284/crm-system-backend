@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   UnauthorizedException,
@@ -82,6 +83,57 @@ describe('AuthService', () => {
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
+  it('в демо-режиме регистрация отклоняется до капчи и БД', async () => {
+    configService.get.mockImplementation((key: string) =>
+      key === 'DEMO_MODE' ? 'true' : undefined,
+    );
+
+    await expect(
+      service.register({
+        email: 'new@user.com',
+        password: 'password123',
+        name: 'New',
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(captchaService.verify).not.toHaveBeenCalled();
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('в демо-режиме логин не-демо отклоняется', async () => {
+    configService.get.mockImplementation((key: string) =>
+      key === 'DEMO_MODE' ? 'true' : undefined,
+    );
+
+    await expect(
+      service.login({ email: 'alice@example.com', password: 'password123' }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('в демо-режиме демо-аккаунт логинится как обычно', async () => {
+    configService.get.mockImplementation((key: string) =>
+      key === 'DEMO_MODE' ? 'true' : undefined,
+    );
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'demo-1',
+      email: 'demo1@example.com',
+      role: 'ADMIN',
+      passwordHash: 'hash',
+      isEmailVerified: true,
+    });
+    (argon2.verify as jest.Mock).mockResolvedValue(true);
+    (argon2.hash as jest.Mock).mockResolvedValue('hashed-refresh');
+    prisma.user.update.mockResolvedValue({});
+
+    const result = await service.login({
+      email: 'demo1@example.com',
+      password: 'Demo12345',
+    });
+    expect(result).toEqual({
+      accessToken: 'signed-token',
+      refreshToken: 'signed-token',
+    });
+  });
   it('бросает UnauthorizedException при неверном пароле', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: '1', passwordHash: 'hash' });
     (argon2.verify as jest.Mock).mockResolvedValue(false);

@@ -4,6 +4,7 @@ export * from "./constants/deal-workflow.constants";
 export * from "./constants/deal-permissions.constants";
 export * from "./constants/billing-permissions.constants";
 export * from "./constants/billing-workflow.constants";
+export * from "./constants/demo.constants";
 export * from "./constants/validation.constants";
 export * from "./types/auth-user.interface";
 export * from "./interfaces/task-messages.interface";

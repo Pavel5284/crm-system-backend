@@ -14,6 +14,7 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { DemoModule } from './modules/demo/demo.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { LoggerModule } from 'nestjs-pino';
@@ -38,6 +39,7 @@ import { RedisThrottlerStorage } from './common/throttle/redis-throttler.storage
     ChatModule,
     OrdersModule,
     PaymentsModule,
+    DemoModule,
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',

@@ -24,6 +24,20 @@ const envSchema = baseEnvSchema.extend({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  // Демо-стенд: demo1/demo2/demo3 + POST /demo/reset.
+  // Демо-режим: DEMO_MODE=true закрывает регистрацию (POST /auth/register,
+  // POST /auth/resend-verification -> 403) и разрешает вход/refresh только
+  // demo1/demo2/demo3. Работают только демо-аккаунты с демо-данными.
+  DEMO_MODE: z.string().optional(),
+  // DEMO_ENABLED=false полностью блокирует сброс.
+  DEMO_ENABLED: z.string().optional(),
+  // Пароль демо-аккаунтов (дефолт Demo12345).
+  DEMO_PASSWORD: z.string().optional(),
+  // Ночной автосброс демо-данных (1/сутки в 00:00). DEMO_AUTO_RESET=false
+  // отключает только расписание, ручной POST /demo/reset остаётся.
+  DEMO_AUTO_RESET: z.string().optional(),
+  // Часовой пояс автосброса (IANA). Дефолт — Москва.
+  DEMO_RESET_TZ: z.string().optional(),
   // Публичный URL notifications-service для автопробуждения (free-план Render):
   // при таймауте RPC gateway пинает его /health, фронт повторяет запрос.
   // Необязательно: без него таймаут просто вернёт 504 без пинга.
